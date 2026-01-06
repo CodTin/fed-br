@@ -4,4 +4,32 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "flwr-datasets>=0.5.0",
+    "flwr[simulation]>=1.25.0",
+    "torch>=2.9.1",
+    "torchvision>=0.24.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.flwr.app]
+publisher = "codtin"
+
+[tool.flwr.app.components]
+serverapp = "fed-br.server_app:app"
+clientapp = "fed-br.client_app:app"
+
+[tool.flwr.app.config]
+num-server-rounds = 10
+fraction-evaluate = 0.5
+local-epochs = 1
+learning-rate = 0.1
+batch-size = 32
+
+[tool.flwr.federations]
+default = "local-simulation"
+
+[tool.flwr.federations.local-simulation]
+options.num-supernodes = 10

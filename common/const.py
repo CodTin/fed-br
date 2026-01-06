@@ -1,0 +1,4 @@
+
+FINAL_MODEL_DIR = "output"
+FINAL_MODEL_NAME = "final_model.pt"
+FINAL_MODEL_PATH = f"{FINAL_MODEL_DIR}/{FINAL_MODEL_DIR}"
