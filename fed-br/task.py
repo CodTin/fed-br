@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
+from opacus import PrivacyEngine
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Normalize, ToTensor
 
@@ -96,7 +97,7 @@ def load_centralized_dataset():
     return DataLoader(dataset, batch_size=128)
 
 
-def train(net, trainloader, epochs, lr, device):
+def train(net: nn.Module, trainloader: DataLoader, epochs: int, lr: float, device: str, privacy_engine: PrivacyEngine):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -116,7 +117,7 @@ def train(net, trainloader, epochs, lr, device):
     return avg_trainloss
 
 
-def test(net, testloader, device):
+def test(net: nn.Module, testloader: DataLoader, device: str):
     """Validate the model on the test set."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss()
