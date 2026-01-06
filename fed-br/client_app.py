@@ -1,11 +1,10 @@
-import torch.nn as nn
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 from opacus import PrivacyEngine
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
-from common import get_device
+from common import get_device, unwrap_state_dict
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
@@ -26,13 +25,6 @@ def partition_loader(ctx: Context) -> tuple[int, float, DataLoader, DataLoader]:
     _train, _eval = load_data(partition_id, num_partitions, batch_size)
 
     return partition_id, noise, _train, _eval
-
-
-def _unwrap_state_dict(model: nn.Module) -> dict:
-    # NOTE: this is to return plain or unwrapped state_dict even if Opacus wrapped the model.
-    return (
-        model._module.state_dict() if hasattr(model, "_module") else model.state_dict()
-    )
 
 
 @app.train()
@@ -77,7 +69,7 @@ def train(msg: Message, context: Context):
     )
 
     # Construct and return reply Message
-    model_record = ArrayRecord(_unwrap_state_dict(model))
+    model_record = ArrayRecord(unwrap_state_dict(model))
     metrics = {
         "train_loss": train_loss,
         "num-examples": len(trainloader.dataset),
