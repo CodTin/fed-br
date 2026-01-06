@@ -5,6 +5,7 @@ from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
 from opacus import PrivacyEngine
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Normalize, ToTensor
 
@@ -53,6 +54,7 @@ class LightweightCNN(nn.Module):
         x = self.fc2(x)
         return x
 
+
 Net = LightweightCNN
 
 
@@ -97,11 +99,18 @@ def load_centralized_dataset():
     return DataLoader(dataset, batch_size=128)
 
 
-def train(net: nn.Module, trainloader: DataLoader, epochs: int, lr: float, device: str, privacy_engine: PrivacyEngine):
+def train(
+    net: nn.Module,
+    trainloader: DataLoader,
+    epochs: int,
+    device: str,
+    privacy_engine: PrivacyEngine,
+    target_delta: float,
+    optimizer: Optimizer,
+):
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
     net.train()
     running_loss = 0.0
     for _ in range(epochs):
@@ -113,8 +122,11 @@ def train(net: nn.Module, trainloader: DataLoader, epochs: int, lr: float, devic
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
+
+    epsilon = privacy_engine.get_epsilon(delta=target_delta)
     avg_trainloss = running_loss / len(trainloader)
-    return avg_trainloss
+
+    return avg_trainloss, epsilon
 
 
 def test(net: nn.Module, testloader: DataLoader, device: str):

@@ -28,6 +28,8 @@ fraction-evaluate = 0.5
 local-epochs = 1
 learning-rate = 0.1
 batch-size = 32
+target-delta = 1e-5
+max-grad-norm = 1.0
 
 [tool.flwr.federations]
 default = "local-simulation"
