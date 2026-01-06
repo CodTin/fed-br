@@ -15,3 +15,5 @@ wheels/
 *.md
 !README.md
 *.pt
+.claude
+.spec-workflow
