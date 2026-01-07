@@ -8,9 +8,15 @@ dependencies = [
     "flwr-datasets>=0.5.0",
     "flwr[simulation]>=1.25.0",
     "loguru>=0.7.0",
+    "mypy>=1.14.0",
     "opacus>=1.5.4",
     "torch>=2.9.1",
     "torchvision>=0.24.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.6.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -37,3 +43,33 @@ default = "local-simulation"
 
 [tool.flwr.federations.local-simulation]
 options.num-supernodes = 10
+
+[tool.mypy]
+# 严格模式配置
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = false
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+ignore_missing_imports = true
+strict_equality = true
+strict_optional = true
+explicit_package_bases = true
+
+# 忽略第三方库的类型检查
+[[tool.mypy.overrides]]
+module = [
+    "opacus.*",
+    "loguru.*",
+    "flwr.*",
+    "flwr_datasets.*",
+    "datasets.*",
+]
+ignore_missing_imports = true

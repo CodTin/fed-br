@@ -3,6 +3,7 @@ from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
 from loguru import logger
+from typing import cast
 
 from common import get_device, setup_logger
 from common.const import FINAL_MODEL_PATH
@@ -19,9 +20,9 @@ def main(grid: Grid, context: Context) -> None:
     logger.info("Starting FedAvg server")
 
     # Read run config
-    fraction_evaluate: float = context.run_config["fraction-evaluate"]
-    num_rounds: int = context.run_config["num-server-rounds"]
-    lr: float = context.run_config["learning-rate"]
+    fraction_evaluate: float = float(context.run_config["fraction-evaluate"])
+    num_rounds: int = int(context.run_config["num-server-rounds"])
+    lr: float = float(context.run_config["learning-rate"])
 
     # Load global model
     global_model = Net()

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Any, Sized, cast
 from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
@@ -23,7 +24,7 @@ class LightweightCNN(nn.Module):
     - Linear(64, 10) -> Output (10 classes)                                 # Final classification
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(LightweightCNN, self).__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
@@ -35,7 +36,7 @@ class LightweightCNN(nn.Module):
         self.fc1 = nn.Linear(4 * 4 * 64, 64)
         self.fc2 = nn.Linear(64, 10)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Layer 1: Feature extraction with dropout
         x = self.pool(F.relu(self.conv1(x)))
         x = self.dropout_conv(x)
@@ -63,13 +64,15 @@ fds = None  # Cache FederatedDataset
 pytorch_transforms = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 
-def apply_transforms(batch):
+def apply_transforms(batch: dict[str, list[Any]]) -> dict[str, list[Any]]:
     """Apply transforms to the partition from FederatedDataset."""
     batch["img"] = [pytorch_transforms(img) for img in batch["img"]]
     return batch
 
 
-def load_data(partition_id: int, num_partitions: int, batch_size: int):
+def load_data(
+    partition_id: int, num_partitions: int, batch_size: int
+) -> tuple[DataLoader[Any], DataLoader[Any]]:
     """Load partition CIFAR10 data."""
     # Only initialize `FederatedDataset` once
     global fds
@@ -91,7 +94,7 @@ def load_data(partition_id: int, num_partitions: int, batch_size: int):
     return trainloader, testloader
 
 
-def load_centralized_dataset():
+def load_centralized_dataset() -> DataLoader[Any]:
     """Load test set and return dataloader."""
     # Load entire test set
     test_dataset = load_dataset("uoft-cs/cifar10", split="test")
@@ -101,13 +104,13 @@ def load_centralized_dataset():
 
 def train(
     net: nn.Module,
-    trainloader: DataLoader,
+    trainloader: DataLoader[Any],
     epochs: int,
     device: str,
     privacy_engine: PrivacyEngine,
     target_delta: float,
     optimizer: Optimizer,
-):
+) -> tuple[float, float]:
     """Train the model on the training set."""
     net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
@@ -129,7 +132,7 @@ def train(
     return avg_trainloss, epsilon
 
 
-def test(net: nn.Module, testloader: DataLoader, device: str):
+def test(net: nn.Module, testloader: DataLoader[Any], device: str) -> tuple[float, float]:
     """Validate the model on the test set."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss()
@@ -141,6 +144,6 @@ def test(net: nn.Module, testloader: DataLoader, device: str):
             outputs = net(images)
             loss += criterion(outputs, labels).item()
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-    accuracy = correct / len(testloader.dataset)
+    accuracy = correct / len(cast(Sized, testloader.dataset))
     loss = loss / len(testloader)
     return loss, accuracy

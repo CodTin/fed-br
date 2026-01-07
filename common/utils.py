@@ -3,8 +3,9 @@ from pathlib import Path
 
 import torch
 from loguru import logger
-from torch import nn
+from torch import Tensor, nn
 from torch.types import Device
+from typing import cast
 
 # 移除 loguru 默认的 stderr handler
 logger.remove()
@@ -128,8 +129,9 @@ def get_device(cuda_num: int = 0) -> Device:
     return device
 
 
-def unwrap_state_dict(model: nn.Module) -> dict:
+def unwrap_state_dict(model: nn.Module) -> dict[str, Tensor]:
     # NOTE: this is to return plain or unwrapped state_dict even if Opacus wrapped the model.
-    return (
-        model._module.state_dict() if hasattr(model, "_module") else model.state_dict()
-    )
+    if hasattr(model, "_module"):
+        module = cast(nn.Module, model._module)
+        return cast(dict[str, Tensor], module.state_dict())
+    return cast(dict[str, Tensor], model.state_dict())

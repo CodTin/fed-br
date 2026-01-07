@@ -23,3 +23,10 @@ logs/
 *.log
 *.log.gz
 *.log.zip
+
+# Pre-commit
+.pre-commit-cache/
+
+# Mypy
+.mypy_cache/
+dmypy.json

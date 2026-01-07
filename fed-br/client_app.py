@@ -4,6 +4,7 @@ from loguru import logger
 from opacus import PrivacyEngine
 from torch.optim import SGD
 from torch.utils.data import DataLoader
+from typing import Any, Sized, cast
 
 from common import get_device, setup_logger, unwrap_state_dict
 from .task import Net, load_data
@@ -13,13 +14,13 @@ from .task import train as train_fn
 app = ClientApp()
 
 
-def partition_loader(ctx: Context) -> tuple[int, float, DataLoader, DataLoader]:
+def partition_loader(ctx: Context) -> tuple[int, float, DataLoader[Any], DataLoader[Any]]:
     """
     load dataloader using user config
     """
-    partition_id = ctx.node_config["partition-id"]
-    num_partitions = ctx.node_config["num-partitions"]
-    batch_size = ctx.run_config["batch-size"]
+    partition_id = int(ctx.node_config["partition-id"])
+    num_partitions = int(ctx.node_config["num-partitions"])
+    batch_size = int(ctx.run_config["batch-size"])
 
     noise = 1.0 if partition_id % 2 == 0 else 1.5
 
@@ -29,7 +30,7 @@ def partition_loader(ctx: Context) -> tuple[int, float, DataLoader, DataLoader]:
 
 
 @app.train()
-def train(msg: Message, context: Context):
+def train(msg: Message, context: Context) -> Message:
     """Train the model on local data."""
     # 初始化日志系统
     setup_logger()
@@ -39,9 +40,10 @@ def train(msg: Message, context: Context):
 
     target_delta = float(context.run_config["target-delta"])
     max_grad_norm = float(context.run_config["max-grad-norm"])
-    lr = float(msg.content["config"]["lr"])
+    lr = float(cast(float, msg.content["config"]["lr"]))
 
-    model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
+    arrays = cast(ArrayRecord, msg.content["arrays"])
+    model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
 
@@ -75,7 +77,7 @@ def train(msg: Message, context: Context):
     model_record = ArrayRecord(unwrap_state_dict(model))
     metrics = {
         "train_loss": train_loss,
-        "num-examples": len(trainloader.dataset),
+        "num-examples": len(cast(Sized, trainloader.dataset)),
         "epsilon": float(epsilon),
         "target_delta": float(target_delta),
         "noise_multiplier": float(noise_multiplier),
@@ -91,12 +93,13 @@ def train(msg: Message, context: Context):
 
 
 @app.evaluate()
-def evaluate(msg: Message, context: Context):
+def evaluate(msg: Message, context: Context) -> Message:
     """Evaluate the model on local data."""
 
     # Load the model and initialize it with the received weights
     model = Net()
-    model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
+    arrays = cast(ArrayRecord, msg.content["arrays"])
+    model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
 
@@ -114,7 +117,7 @@ def evaluate(msg: Message, context: Context):
     metrics = {
         "eval_loss": eval_loss,
         "eval_acc": eval_acc,
-        "num-examples": len(valloader.dataset),
+        "num-examples": len(cast(Sized, valloader.dataset)),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"metrics": metric_record})
