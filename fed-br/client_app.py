@@ -1,10 +1,11 @@
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
+from loguru import logger
 from opacus import PrivacyEngine
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
-from common import get_device, unwrap_state_dict
+from common import get_device, setup_logger, unwrap_state_dict
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
@@ -30,6 +31,8 @@ def partition_loader(ctx: Context) -> tuple[int, float, DataLoader, DataLoader]:
 @app.train()
 def train(msg: Message, context: Context):
     """Train the model on local data."""
+    # 初始化日志系统
+    setup_logger()
 
     # Load the model and initialize it with the received weights
     model = Net()
@@ -80,11 +83,10 @@ def train(msg: Message, context: Context):
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
-    print(40 * "=")
-    print(
-        f"[client {pid}] epsilon(delta={target_delta})={epsilon:.2f}, noise={noise_multiplier}"
+    logger.info(
+        f"[client {pid}] epsilon(delta={target_delta})={epsilon:.2f}, "
+        f"noise={noise_multiplier}, max_grad_norm={max_grad_norm}"
     )
-    print(40 * "=")
     return Message(content=content, reply_to=msg)
 
 

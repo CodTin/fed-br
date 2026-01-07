@@ -2,8 +2,9 @@ import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
+from loguru import logger
 
-from common import get_device
+from common import get_device, setup_logger
 from common.const import FINAL_MODEL_PATH
 from .task import Net, load_centralized_dataset, test
 
@@ -13,6 +14,9 @@ app = ServerApp()
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
+    # 初始化日志系统
+    setup_logger()
+    logger.info("Starting FedAvg server")
 
     # Read run config
     fraction_evaluate: float = context.run_config["fraction-evaluate"]
@@ -36,9 +40,10 @@ def main(grid: Grid, context: Context) -> None:
     )
 
     # Save final model to disk
-    print("\nSaving final model to disk...")
+    logger.info(f"Saving final model to disk: {FINAL_MODEL_PATH}")
     state_dict = result.arrays.to_torch_state_dict()
     torch.save(state_dict, FINAL_MODEL_PATH)
+    logger.info("Model saved successfully")
 
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
