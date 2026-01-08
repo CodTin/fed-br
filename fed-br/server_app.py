@@ -3,10 +3,10 @@ from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
 from loguru import logger
-from typing import cast
 
 from common import get_device, setup_logger
 from common.const import FINAL_MODEL_PATH
+
 from .task import Net, load_centralized_dataset, test
 
 app = ServerApp()

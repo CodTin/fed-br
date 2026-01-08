@@ -1,4 +1,16 @@
 repos:
+  # ruff：代码格式化和 linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      # ruff linter（修复可自动修复的问题）
+      - id: ruff
+        name: ruff (lint)
+        args: [--fix, --exit-non-zero-on-fix]
+      # ruff formatter（代码格式化）
+      - id: ruff-format
+        name: ruff (format)
+
   # 通用 pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -9,9 +21,10 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: debug-statements
+      - id: check-toml
+      - id: check-json
 
   # 本地 mypy 类型检查（手动运行）
   # 注意：由于 fed-br 包名包含连字符，pre-commit 无法直接运行 mypy
   # 请在提交前手动运行：cd fed-br && mypy --config-file=../mypy.ini *.py
   # 和：mypy --config-file=mypy.ini common/*.py
-

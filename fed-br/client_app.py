@@ -1,20 +1,27 @@
+from typing import TYPE_CHECKING, Any, cast
+
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 from loguru import logger
 from opacus import PrivacyEngine
 from torch.optim import SGD
 from torch.utils.data import DataLoader
-from typing import Any, Sized, cast
 
 from common import get_device, setup_logger, unwrap_state_dict
+
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
 
+if TYPE_CHECKING:
+    from collections.abc import Sized
+
 app = ClientApp()
 
 
-def partition_loader(ctx: Context) -> tuple[int, float, DataLoader[Any], DataLoader[Any]]:
+def partition_loader(
+    ctx: Context,
+) -> tuple[int, float, DataLoader[Any], DataLoader[Any]]:
     """
     load dataloader using user config
     """
@@ -40,9 +47,9 @@ def train(msg: Message, context: Context) -> Message:
 
     target_delta = float(context.run_config["target-delta"])
     max_grad_norm = float(context.run_config["max-grad-norm"])
-    lr = float(cast(float, msg.content["config"]["lr"]))
+    lr = float(cast("float", cast("object", msg.content["config"]["lr"])))
 
-    arrays = cast(ArrayRecord, msg.content["arrays"])
+    arrays = cast("ArrayRecord", msg.content["arrays"])
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
@@ -77,7 +84,7 @@ def train(msg: Message, context: Context) -> Message:
     model_record = ArrayRecord(unwrap_state_dict(model))
     metrics = {
         "train_loss": train_loss,
-        "num-examples": len(cast(Sized, trainloader.dataset)),
+        "num-examples": len(cast("Sized", trainloader.dataset)),
         "epsilon": float(epsilon),
         "target_delta": float(target_delta),
         "noise_multiplier": float(noise_multiplier),
@@ -98,7 +105,7 @@ def evaluate(msg: Message, context: Context) -> Message:
 
     # Load the model and initialize it with the received weights
     model = Net()
-    arrays = cast(ArrayRecord, msg.content["arrays"])
+    arrays = cast("ArrayRecord", msg.content["arrays"])
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
@@ -117,7 +124,7 @@ def evaluate(msg: Message, context: Context) -> Message:
     metrics = {
         "eval_loss": eval_loss,
         "eval_acc": eval_acc,
-        "num-examples": len(cast(Sized, valloader.dataset)),
+        "num-examples": len(cast("Sized", cast("object", valloader.dataset))),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"metrics": metric_record})

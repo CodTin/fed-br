@@ -1,7 +1,9 @@
+from collections.abc import Sized
+from typing import Any, cast
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Any, Sized, cast
 from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
@@ -132,7 +134,9 @@ def train(
     return avg_trainloss, epsilon
 
 
-def test(net: nn.Module, testloader: DataLoader[Any], device: str) -> tuple[float, float]:
+def test(
+    net: nn.Module, testloader: DataLoader[Any], device: str
+) -> tuple[float, float]:
     """Validate the model on the test set."""
     net.to(device)
     criterion = torch.nn.CrossEntropyLoss()
@@ -144,6 +148,6 @@ def test(net: nn.Module, testloader: DataLoader[Any], device: str) -> tuple[floa
             outputs = net(images)
             loss += criterion(outputs, labels).item()
             correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
-    accuracy = correct / len(cast(Sized, testloader.dataset))
+    accuracy = correct / len(cast("Sized", cast("object", testloader.dataset)))
     loss = loss / len(testloader)
     return loss, accuracy
