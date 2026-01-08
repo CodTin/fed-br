@@ -1,5 +1,5 @@
 [project]
-name = "fed-br"
+name = "fed_br"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -28,12 +28,12 @@ packages = ["."]
 publisher = "codtin"
 
 [tool.flwr.app.components]
-serverapp = "fed-br.server_app:app"
-clientapp = "fed-br.client_app:app"
+serverapp = "fed_br.server_app:app"
+clientapp = "fed_br.client_app:app"
 
 [tool.flwr.app.config]
 num-server-rounds = 10
-fraction-evaluate = 0.5
+fraction-evaluate = 1
 local-epochs = 1
 learning-rate = 0.1
 batch-size = 32
@@ -159,7 +159,7 @@ search = 'version = "{current_version}"'
 replace = 'version = "{new_version}"'
 
 [[tool.bumpversion.files]]
-filename = "fed-br/__init__.py"
+filename = "fed_br/__init__.py"
 search = '__version__ = "{current_version}"'
 replace = '__version__ = "{new_version}"'
 

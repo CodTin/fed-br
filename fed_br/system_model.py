@@ -1,0 +1,222 @@
+"""
+联邦学习通信与计算模型,用于计算传输速率、延迟和能耗。
+
+该模块封装了:
+- Communication: 无线通信相关的计算,包括信道增益建模、
+  传输速率计算以及通信延迟与能耗估算
+- Computation: 本地计算相关的计算,包括客户端硬件参数建模、
+  本地训练延迟和能耗估算
+
+Attributes:
+    Communication: 通信模型类
+    Computation: 计算模型类
+"""
+
+import math
+
+import numpy as np
+from torch import nn
+
+from common.const import CommunicationConstant, ComputationConstant
+
+
+class Communication:
+    @staticmethod
+    def get_model_size_bits(model: nn.Module) -> int:
+        """
+        计算 PyTorch 模型的参数量(以比特为单位)。
+
+        Args:
+            model: PyTorch 模型实例
+
+        Returns:
+            int: 模型参数量(总参数量 x 32 bits)
+
+        Example:
+            >>> model = LightweightCNN()
+            >>> size = Communication.get_model_size_bits(model)
+            >>> print(f"Model size: {size} bits")  # doctest: +SKIP
+        """
+        total_params: int = sum(p.numel() for p in model.parameters())
+        bits_per_param: int = 32
+        m: int = total_params * bits_per_param
+        return m
+
+    @staticmethod
+    def get_channel_gain(client_id: int) -> float:
+        """
+        根据客户端 ID 生成信道增益。
+
+        使用确定性的随机种子确保同一客户端每次调用获得相同的信道增益,
+        同时不同客户端之间具有独立的信道特性。
+
+        Args:
+            client_id: 客户端标识符,用于生成唯一的随机种子
+
+        Returns:
+            float: 信道增益值,最小值为 1e-4 以避免数值问题
+
+        Note:
+            信道增益服从指数分布: h_i ~ Exp(scale=1.0)
+        """
+        seed: int = 42 + client_id * 100
+        rng = np.random.default_rng(seed)
+
+        h_i: float = rng.exponential(scale=1.0)
+
+        return max(h_i, 1e-4)
+
+    @staticmethod
+    def compute_transmission_rate(h_i: float) -> float:
+        """
+        根据信道增益计算传输速率。
+
+        基于香农定理计算信道容量:
+        r_i = B x log2(1 + SNR)
+
+        Args:
+            h_i: 信道增益 (linear scale)
+
+        Returns:
+            float: 传输速率 (bits/sec)
+
+        Note:
+            SNR = (h_i x TX_POWER) / (NOISE_PSD x BANDWIDTH)
+        """
+        snr: float = (h_i * CommunicationConstant.TX_POWER.value) / (
+            CommunicationConstant.NOISE_PSD.value
+            * CommunicationConstant.BANDWIDTH.value
+        )
+        r_i: float = CommunicationConstant.BANDWIDTH.value * math.log2(1.0 + snr)
+
+        return r_i
+
+    @staticmethod
+    def compute_latency_and_energy(model_size: int, r_i: float) -> tuple[float, float]:
+        """
+        计算模型传输的延迟和能耗。
+
+        Args:
+            model_size: 模型参数量(以比特为单位)
+            r_i: 传输速率 (bits/sec)
+
+        Returns:
+            tuple[float, float]: (延迟时间(秒), 能耗(焦耳))
+
+        Note:
+            延迟 t_comm = model_size / r_i
+            能耗 e_comm = (TX_POWER + CIRCUIT_POWER) x t_comm
+
+        Raises:
+            ValueError: 当传输速率 r_i <= 0 时返回 (inf, inf)
+        """
+        if r_i <= 0:
+            return (float("inf"), float("inf"))
+
+        t_comm: float = model_size / r_i
+        e_comm: float = (
+            CommunicationConstant.TX_POWER.value
+            + CommunicationConstant.CIRCUIT_POWER.value
+        ) * t_comm
+        return (t_comm, e_comm)
+
+
+class Computation:
+    @staticmethod
+    def get_client_hardware_params(client_id: int) -> tuple[float, float]:
+        """
+        获取客户端硬件参数(计算频率和能量系数)。
+
+        根据客户端 ID 生成确定性的随机硬件参数,
+        用于后续的本地计算延迟和能耗估算。
+
+        Args:
+            client_id: 客户端标识符,用于生成唯一的随机种子
+
+        Returns:
+            tuple: (计算频率 f_i (Hz), 能量系数 kappa_i (J/operation))
+
+        Example:
+            >>> f_i, kappa_i = Computation.get_client_hardware_params(0)
+            >>> print(f"Frequency: {f_i:.2e} Hz")
+            >>> print(f"Energy coefficient: {kappa_i:.2e} J")
+        """
+        seed: int = 2025 + client_id * 50
+        rng = np.random.default_rng(seed)
+
+        f_i: float = rng.uniform(1.0e9, 2.5e9)
+
+        kappa_i: float = rng.uniform(1e-28, 5e-28)
+        return (f_i, kappa_i)
+
+    @staticmethod
+    def compute_local_latency_and_energy(
+        num_sample: int, epochs: float, f_i: float, kappa_i: float
+    ) -> tuple[float, float]:
+        """
+        计算本地训练的延迟和能耗。
+
+        Args:
+            num_sample: 训练样本数量
+            epochs: 本地训练轮数
+            f_i: 客户端计算频率 (Hz)
+            kappa_i: 客户端能量系数 (J/operation)
+
+        Returns:
+            tuple[float, float]: (本地计算延迟(秒), 本地计算能耗(焦耳))
+
+        Note:
+            计算公式:
+            - cycles_per_epoch = CYCLES_PER_SAMPLE x num_sample
+            - total_cycles = epochs x cycles_per_epoch
+            - t_comp = total_cycles / f_i
+            - e_local = kappa_i x f_i^2 x total_cycles
+
+        Example:
+            >>> t_comp, e_local = Computation.compute_local_latency_and_energy(
+            ...     num_sample=100, epochs=1, f_i=2e9, kappa_i=1e-28
+            ... )
+            >>> print(f"Computation latency: {t_comp:.4f}s")
+            >>> print(f"Computation energy: {e_local:.4f}J")
+        """
+        cycles_per_epoch: float = (
+            ComputationConstant.CYCLES_PER_SAMPLE.value * num_sample
+        )
+
+        total_cycles: float = epochs * cycles_per_epoch
+
+        t_comp: float = total_cycles / f_i
+
+        e_local: float = kappa_i * (f_i**2) * total_cycles
+
+        return (t_comp, e_local)
+
+    @staticmethod
+    def compute_server_energy(model_size: int, num_participating_client: int) -> float:
+        """
+        计算服务器聚合所有客户端模型更新的能耗。
+
+        Args:
+            model_size: 模型参数量(以比特为单位)
+            num_participating_client: 参与聚合的客户端数量
+
+        Returns:
+            float: 服务器聚合能耗(焦耳)
+
+        Note:
+            能耗 = num_clients x model_size x (E_DEC + E_AGG)
+            其中:
+            - E_DEC: 解码能耗系数
+            - E_AGG: 聚合能耗系数
+
+        Example:
+            >>> energy = Computation.compute_server_energy(
+            ...     model_size=480000, num_participating_client=10
+            ... )
+            >>> print(f"Server aggregation energy: {energy:.4f}J")
+        """
+        e_per_client: float = model_size * (
+            ComputationConstant.E_DEC.value + ComputationConstant.E_AGG.value
+        )
+        total_energy: float = num_participating_client * e_per_client
+        return total_energy

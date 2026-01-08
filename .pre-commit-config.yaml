@@ -23,8 +23,3 @@ repos:
       - id: debug-statements
       - id: check-toml
       - id: check-json
-
-  # 本地 mypy 类型检查（手动运行）
-  # 注意：由于 fed-br 包名包含连字符，pre-commit 无法直接运行 mypy
-  # 请在提交前手动运行：cd fed-br && mypy --config-file=../mypy.ini *.py
-  # 和：mypy --config-file=mypy.ini common/*.py

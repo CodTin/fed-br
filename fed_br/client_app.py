@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from common import get_device, setup_logger, unwrap_state_dict
 
-from .system_model import Communication
+from .system_model import Communication, Computation
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
@@ -100,8 +100,9 @@ def train(msg: Message, context: Context) -> Message:
     target_delta = float(context.run_config["target-delta"])
     max_grad_norm = float(context.run_config["max-grad-norm"])
     lr = float(cast("float", cast("object", msg.content["config"]["lr"])))
+    local_epochs = int(context.run_config["local-epochs"])
 
-    arrays = msg.content["arrays"]
+    arrays = cast("ArrayRecord", msg.content["arrays"])
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
@@ -115,7 +116,16 @@ def train(msg: Message, context: Context) -> Message:
     model_size = Communication.get_model_size_bits(model)
     h_i = Communication.get_channel_gain(pid)
     r_i = Communication.compute_transmission_rate(h_i)
-    comm_latency, comm_energy = Communication.compute_latency_and_energy(model_size, r_i)
+    comm_latency, comm_energy = Communication.compute_latency_and_energy(
+        model_size, r_i
+    )
+
+    # 计算 Computation Model
+    num_samples = len(cast("Sized", cast("object", trainloader.dataset)))
+    f_i, kappa_i = Computation.get_client_hardware_params(pid)
+    comp_latency, comp_energy = Computation.compute_local_latency_and_energy(
+        num_sample=num_samples, epochs=local_epochs, f_i=f_i, kappa_i=kappa_i
+    )
 
     privacy_engine = PrivacyEngine(secure_mode=False)
 
@@ -150,14 +160,21 @@ def train(msg: Message, context: Context) -> Message:
         # Communication Model Metrics
         "comm_latency": float(comm_latency),
         "comm_energy": float(comm_energy),
-        "transmission_rate": float(r_i)
+        "transmission_rate": float(r_i),
+        # Computation Model Metrics
+        "comp_latency": float(comp_latency),
+        "comp_energy": float(comp_energy),
+        # Total Metric
+        "total_latency": float(comm_latency + comp_latency),
+        "total_energy": float(comm_energy + comp_energy),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
     logger.info(
         f"[Client {pid}] epsilon(delta={target_delta})={epsilon:.2f}, "
         f"noise={noise_multiplier}, max_grad_norm={max_grad_norm} "
-        f"communicate_latency={comm_latency:.4f}, communicate_energy={comm_energy:.4f}"
+        f"communicate_latency={comm_latency:.4f}s, communicate_energy={comm_energy:.4f}J "
+        f"compute_latency={comp_latency:.4f}s, compute_energy={comp_energy:.4f}J"
     )
     return Message(content=content, reply_to=msg)
 
@@ -188,7 +205,7 @@ def evaluate(msg: Message, context: Context) -> Message:
     """
     # Load the model and initialize it with the received weights
     model = Net()
-    arrays = msg.content["arrays"]
+    arrays = cast("ArrayRecord", msg.content["arrays"])
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
