@@ -68,7 +68,6 @@ explicit_package_bases = true
 [[tool.mypy.overrides]]
 module = [
     "opacus.*",
-    "loguru.*",
     "flwr.*",
     "flwr_datasets.*",
     "datasets.*",

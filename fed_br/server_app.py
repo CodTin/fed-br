@@ -5,8 +5,11 @@ from flwr.serverapp.strategy import FedAvg
 
 from common import get_device
 from common.const import FINAL_MODEL_PATH
+from common.logging import configure_flwr_logging
 
 from .task import Net, load_centralized_dataset, test
+
+configure_flwr_logging()
 
 app = ServerApp()
 
@@ -34,6 +37,7 @@ def main(grid: Grid, context: Context) -> None:
         >>> # 在 Flower 内部调用
         >>> # main(grid, context)
     """
+
     # Read run config
     fraction_evaluate: float = float(context.run_config["fraction-evaluate"])
     num_rounds: int = int(context.run_config["num-server-rounds"])

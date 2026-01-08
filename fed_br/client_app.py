@@ -7,6 +7,7 @@ from torch.optim import SGD
 from torch.utils.data import DataLoader
 
 from common import get_device, unwrap_state_dict
+from common.logging import configure_flwr_logging
 
 from .system_model import Communication, Computation, PrivacyLeakage
 from .task import Net, load_data
@@ -15,6 +16,8 @@ from .task import train as train_fn
 
 if TYPE_CHECKING:
     from collections.abc import Sized
+
+configure_flwr_logging()
 
 app = ClientApp()
 
@@ -86,6 +89,7 @@ def train(msg: Message, context: Context) -> Message:
         >>> # 由 Flower 自动调用
         >>> # reply = train(msg, context)
     """
+
     # Load the model and initialize it with the received weights
     model = Net()
 
@@ -173,7 +177,9 @@ def train(msg: Message, context: Context) -> Message:
         # Privacy
         "privacy_cost": float(privacy_cost),
     }
-    metric_record = MetricRecord(metrics)
+    metric_record = MetricRecord(
+        cast("dict[str, int | float | list[int] | list[float]] | None", metrics)
+    )
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
     return Message(content=content, reply_to=msg)
 
@@ -202,6 +208,7 @@ def evaluate(msg: Message, context: Context) -> Message:
         >>> # 由 Flower 自动调用
         >>> # reply = evaluate(msg, context)
     """
+
     # Load the model and initialize it with the received weights
     model = Net()
     arrays = cast("ArrayRecord", msg.content["arrays"])

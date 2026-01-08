@@ -1,3 +1,5 @@
+from typing import cast
+
 import torch
 from torch import Tensor, nn
 
@@ -57,6 +59,6 @@ def unwrap_state_dict(model: nn.Module) -> dict[str, Tensor]:
         否则返回 model.state_dict()
     """
     if hasattr(model, "_module"):
-        module = model._module
+        module = cast("nn.Module", model._module)
         return module.state_dict()
     return model.state_dict()
