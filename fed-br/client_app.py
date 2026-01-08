@@ -24,7 +24,26 @@ def partition_loader(
     ctx: Context,
 ) -> tuple[int, float, DataLoader[Any], DataLoader[Any]]:
     """
-    load dataloader using user config
+    根据上下文配置加载客户端数据分区。
+
+    从上下文中读取分区 ID、分区总数和批次大小,
+    调用 load_data() 加载对应的 CIFAR-10 数据分区,
+    并根据分区 ID 确定差分隐私噪声乘数(偶数分区 1.0,奇数分区 1.5)。
+
+    Args:
+        ctx: Flower 客户端上下文,包含节点配置和运行配置
+
+    Returns:
+        tuple: 包含以下元素的元组:
+            - partition_id (int): 当前客户端的分区 ID
+            - noise (float): 差分隐私噪声乘数
+            - trainloader (DataLoader): 训练数据加载器
+            - testloader (DataLoader): 测试数据加载器
+
+    Example:
+        >>> from flwr.app import Context
+        >>> # 由 train() 和 evaluate() 调用
+        >>> # pid, noise, trainloader, testloader = partition_loader(context)
     """
     partition_id = int(ctx.node_config["partition-id"])
     num_partitions = int(ctx.node_config["num-partitions"])
@@ -39,7 +58,39 @@ def partition_loader(
 
 @app.train()
 def train(msg: Message, context: Context) -> Message:
-    """Train the model on local data."""
+    """
+    联邦学习客户端训练入口,执行本地差分隐私训练。
+
+    接收服务端发送的全局模型权重,加载本地数据分区,
+    使用 Opacus PrivacyEngine 进行差分隐私 SGD 训练,
+    计算通信模型的延迟和能耗,返回更新后的模型权重与训练指标。
+
+    Args:
+        msg: 服务端发送的消息,包含模型配置和学习率
+        context: 客户端上下文,包含分区 ID、运行配置(批次大小、目标 delta 等)
+
+    Returns:
+        Message: 包含以下内容的回复消息:
+            - arrays: 更新后的模型权重 (ArrayRecord)
+            - metrics: 训练指标 (MetricRecord),包含:
+                - train_loss: 训练损失
+                - num-examples: 训练样本数
+                - epsilon: 差分隐私预算
+                - noise_multiplier: 噪声乘数
+                - max_grad_norm: 梯度裁剪阈值
+                - comm_latency: 通信延迟(秒)
+                - comm_energy: 通信能耗(焦耳)
+                - transmission_rate: 传输速率(bits/sec)
+
+    Side Effects:
+        - 初始化日志系统
+        - 记录训练指标到日志
+
+    Example:
+        >>> from flwr.app import Message, Context
+        >>> # 由 Flower 自动调用
+        >>> # reply = train(msg, context)
+    """
     # 初始化日志系统
     setup_logger()
 
@@ -113,8 +164,28 @@ def train(msg: Message, context: Context) -> Message:
 
 @app.evaluate()
 def evaluate(msg: Message, context: Context) -> Message:
-    """Evaluate the model on local data."""
+    """
+    联邦学习客户端评估入口,在本地验证集上评估模型。
 
+    接收服务端发送的全局模型权重,在本地数据分区的测试部分上
+    进行推理,计算损失值和准确率并返回评估指标。
+
+    Args:
+        msg: 服务端发送的消息,包含模型权重
+        context: 客户端上下文,包含分区 ID、运行配置
+
+    Returns:
+        Message: 包含评估指标的回复消息:
+            - metrics: 评估指标 (MetricRecord),包含:
+                - eval_loss: 验证集损失
+                - eval_acc: 验证集准确率
+                - num-examples: 验证样本数
+
+    Example:
+        >>> from flwr.app import Message, Context
+        >>> # 由 Flower 自动调用
+        >>> # reply = evaluate(msg, context)
+    """
     # Load the model and initialize it with the received weights
     model = Net()
     arrays = msg.content["arrays"]

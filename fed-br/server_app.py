@@ -14,7 +14,28 @@ app = ServerApp()
 
 @app.main()
 def main(grid: Grid, context: Context) -> None:
-    """Main entry point for the ServerApp."""
+    """
+    FedAvg 服务端主入口,启动联邦学习聚合流程。
+
+    初始化日志系统,读取运行配置,加载全局模型,初始化 FedAvg 策略,
+    并执行指定轮数的联邦学习聚合,最后保存最终模型到磁盘。
+
+    Args:
+        grid: Flower 网格实例,用于管理与客户端的连接和通信
+        context: 运行上下文,包含运行时配置信息(如学习率、轮数等)
+
+    Returns:
+        None
+
+    Side Effects:
+        - 初始化日志系统
+        - 保存最终模型到 FINAL_MODEL_PATH
+
+    Example:
+        >>> from flwr.app import Grid
+        >>> # 在 Flower 内部调用
+        >>> # main(grid, context)
+    """
     # 初始化日志系统
     setup_logger()
     logger.info("Starting FedAvg server")
@@ -48,8 +69,26 @@ def main(grid: Grid, context: Context) -> None:
 
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
-    """Evaluate model on central data."""
+    """
+    在中央测试集上评估全局模型。
 
+    加载接收到的模型权重,在 CIFAR-10 测试集上进行推理,
+    计算损失值和准确率并返回评估指标。
+
+    Args:
+        server_round: 当前联邦学习轮数(从 1 开始)
+        arrays: 包含模型参数权重的 ArrayRecord 对象
+
+    Returns:
+        MetricRecord: 包含以下字段的评估指标字典:
+            - accuracy (float): 测试集准确率 (0-1)
+            - loss (float): 测试集平均损失值
+
+    Example:
+        >>> from flwr.app import ArrayRecord, MetricRecord
+        >>> # 由 FedAvg 策略自动调用
+        >>> # result = global_evaluate(1, arrays)
+    """
     # Load the model and initialize it with the received weights
     model = Net()
     model.load_state_dict(arrays.to_torch_state_dict())

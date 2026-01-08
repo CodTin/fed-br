@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import cast
 
 import torch
 from loguru import logger
@@ -129,8 +130,31 @@ def get_device(cuda_num: int = 0) -> Device:
 
 
 def unwrap_state_dict(model: nn.Module) -> dict[str, Tensor]:
-    # NOTE: this is to return plain or unwrapped state_dict even if Opacus wrapped the model.
+    """
+    安全提取模型状态字典,处理 Opacus 包装情况。
+
+    Opacus 的 PrivacyEngine.make_private() 会将原始模型包装为
+    PrivacyEngineAwareModule,其状态字典保存在 _module 属性中。
+    此函数统一处理两种情况,确保返回正确的状态字典。
+
+    Args:
+        model: PyTorch 模型(可能被 Opacus 包装)
+
+    Returns:
+        dict[str, Tensor]: 模型的状态字典
+
+    Example:
+        >>> model = LightweightCNN()
+        >>> # 普通模型
+        >>> state_dict = unwrap_state_dict(model)
+        >>> # Opacus 包装后的模型
+        >>> state_dict = unwrap_state_dict(wrapped_model)
+
+    Note:
+        如果模型有 _module 属性(Opacus 包装),返回 model._module.state_dict()
+        否则返回 model.state_dict()
+    """
     if hasattr(model, "_module"):
-        module = model._module
+        module = cast("nn.Module", model._module)
         return module.state_dict()
     return model.state_dict()
