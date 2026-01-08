@@ -2,14 +2,13 @@ from typing import TYPE_CHECKING, Any, cast
 
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
-from loguru import logger
 from opacus import PrivacyEngine
 from torch.optim import SGD
 from torch.utils.data import DataLoader
 
-from common import get_device, setup_logger, unwrap_state_dict
+from common import get_device, unwrap_state_dict
 
-from .system_model import Communication, Computation
+from .system_model import Communication, Computation, PrivacyLeakage
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
@@ -82,24 +81,18 @@ def train(msg: Message, context: Context) -> Message:
                 - comm_energy: 通信能耗(焦耳)
                 - transmission_rate: 传输速率(bits/sec)
 
-    Side Effects:
-        - 初始化日志系统
-        - 记录训练指标到日志
-
     Example:
         >>> from flwr.app import Message, Context
         >>> # 由 Flower 自动调用
         >>> # reply = train(msg, context)
     """
-    # 初始化日志系统
-    setup_logger()
-
     # Load the model and initialize it with the received weights
     model = Net()
 
     target_delta = float(context.run_config["target-delta"])
     max_grad_norm = float(context.run_config["max-grad-norm"])
     lr = float(cast("float", cast("object", msg.content["config"]["lr"])))
+    batch_size = int(context.run_config["batch-size"])
     local_epochs = int(context.run_config["local-epochs"])
 
     arrays = cast("ArrayRecord", msg.content["arrays"])
@@ -127,6 +120,15 @@ def train(msg: Message, context: Context) -> Message:
         num_sample=num_samples, epochs=local_epochs, f_i=f_i, kappa_i=kappa_i
     )
 
+    # 计算 PrivacyLeakage Model
+    privacy_cost = PrivacyLeakage.compute_privacy_cost(
+        num_samples=num_samples,
+        batch_size=batch_size,
+        epochs=local_epochs,
+        noise_multiplier=noise_multiplier,
+        target_delta=target_delta,
+    )
+
     privacy_engine = PrivacyEngine(secure_mode=False)
 
     model, optim, trainloader = privacy_engine.make_private(
@@ -138,10 +140,11 @@ def train(msg: Message, context: Context) -> Message:
     )
 
     # Call the training function
+    local_epochs_int = int(context.run_config["local-epochs"])
     train_loss, epsilon = train_fn(
         model,
         trainloader,
-        context.run_config["local-epochs"],
+        local_epochs_int,
         device,
         target_delta=target_delta,
         privacy_engine=privacy_engine,
@@ -150,7 +153,7 @@ def train(msg: Message, context: Context) -> Message:
 
     # Construct and return reply Message
     model_record = ArrayRecord(unwrap_state_dict(model))
-    metrics = {
+    metrics: dict[str, int | float] = {
         "train_loss": train_loss,
         "num-examples": len(cast("Sized", trainloader.dataset)),
         "epsilon": float(epsilon),
@@ -167,15 +170,11 @@ def train(msg: Message, context: Context) -> Message:
         # Total Metric
         "total_latency": float(comm_latency + comp_latency),
         "total_energy": float(comm_energy + comp_energy),
+        # Privacy
+        "privacy_cost": float(privacy_cost),
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
-    logger.info(
-        f"[Client {pid}] epsilon(delta={target_delta})={epsilon:.2f}, "
-        f"noise={noise_multiplier}, max_grad_norm={max_grad_norm} "
-        f"communicate_latency={comm_latency:.4f}s, communicate_energy={comm_energy:.4f}J "
-        f"compute_latency={comp_latency:.4f}s, compute_energy={comp_energy:.4f}J"
-    )
     return Message(content=content, reply_to=msg)
 
 
@@ -214,18 +213,20 @@ def evaluate(msg: Message, context: Context) -> Message:
     _, _, _, valloader = partition_loader(context)
 
     # Call the evaluation function
+    device_str = get_device()
     eval_loss, eval_acc = test_fn(
         model,
         valloader,
-        device,
+        device_str,
     )
 
     # Construct and return reply Message
-    metrics = {
-        "eval_loss": eval_loss,
-        "eval_acc": eval_acc,
-        "num-examples": len(cast("Sized", cast("object", valloader.dataset))),
-    }
-    metric_record = MetricRecord(metrics)
+    metric_record = MetricRecord(
+        {
+            "eval_loss": eval_loss,
+            "eval_acc": eval_acc,
+            "num-examples": len(cast("Sized", cast("object", valloader.dataset))),
+        }
+    )
     content = RecordDict({"metrics": metric_record})
     return Message(content=content, reply_to=msg)

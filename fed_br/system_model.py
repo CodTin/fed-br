@@ -17,7 +17,11 @@ import math
 import numpy as np
 from torch import nn
 
-from common.const import CommunicationConstant, ComputationConstant
+from common.const import (
+    CommunicationConstant,
+    ComputationConstant,
+    PrivacyLeakageConstant,
+)
 
 
 class Communication:
@@ -111,14 +115,14 @@ class Communication:
             ValueError: 当传输速率 r_i <= 0 时返回 (inf, inf)
         """
         if r_i <= 0:
-            return (float("inf"), float("inf"))
+            return float("inf"), float("inf")
 
         t_comm: float = model_size / r_i
         e_comm: float = (
             CommunicationConstant.TX_POWER.value
             + CommunicationConstant.CIRCUIT_POWER.value
         ) * t_comm
-        return (t_comm, e_comm)
+        return t_comm, e_comm
 
 
 class Computation:
@@ -220,3 +224,28 @@ class Computation:
         )
         total_energy: float = num_participating_client * e_per_client
         return total_energy
+
+
+class PrivacyLeakage:
+    @staticmethod
+    def compute_privacy_cost(
+        num_samples: int,
+        batch_size: int,
+        epochs: int,
+        noise_multiplier: float,
+        target_delta: float,
+    ) -> float:
+        if noise_multiplier <= 0 or num_samples <= 0:
+            return float("inf")
+
+        gamma_i = batch_size / num_samples
+
+        term1 = (epochs * gamma_i * PrivacyLeakageConstant.ALPHA_0.value) / (
+            2 * (noise_multiplier**2)
+        )
+
+        term2 = math.log(1.0 / target_delta) / (
+            PrivacyLeakageConstant.ALPHA_0.value - 1
+        )
+
+        return term1 + term2

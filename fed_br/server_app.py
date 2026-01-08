@@ -2,9 +2,8 @@ import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
 from flwr.serverapp.strategy import FedAvg
-from loguru import logger
 
-from common import get_device, setup_logger
+from common import get_device
 from common.const import FINAL_MODEL_PATH
 
 from .task import Net, load_centralized_dataset, test
@@ -17,7 +16,7 @@ def main(grid: Grid, context: Context) -> None:
     """
     FedAvg 服务端主入口,启动联邦学习聚合流程。
 
-    初始化日志系统,读取运行配置,加载全局模型,初始化 FedAvg 策略,
+    读取运行配置,加载全局模型,初始化 FedAvg 策略,
     并执行指定轮数的联邦学习聚合,最后保存最终模型到磁盘。
 
     Args:
@@ -28,7 +27,6 @@ def main(grid: Grid, context: Context) -> None:
         None
 
     Side Effects:
-        - 初始化日志系统
         - 保存最终模型到 FINAL_MODEL_PATH
 
     Example:
@@ -36,10 +34,6 @@ def main(grid: Grid, context: Context) -> None:
         >>> # 在 Flower 内部调用
         >>> # main(grid, context)
     """
-    # 初始化日志系统
-    setup_logger()
-    logger.info("Starting FedAvg server")
-
     # Read run config
     fraction_evaluate: float = float(context.run_config["fraction-evaluate"])
     num_rounds: int = int(context.run_config["num-server-rounds"])
@@ -62,10 +56,8 @@ def main(grid: Grid, context: Context) -> None:
     )
 
     # Save final model to disk
-    logger.info(f"Saving final model to disk: {FINAL_MODEL_PATH}")
     state_dict = result.arrays.to_torch_state_dict()
     torch.save(state_dict, FINAL_MODEL_PATH)
-    logger.info("Model saved successfully")
 
 
 def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
@@ -99,7 +91,7 @@ def global_evaluate(server_round: int, arrays: ArrayRecord) -> MetricRecord:
     test_dataloader = load_centralized_dataset()
 
     # Evaluate the global model on the test set
-    test_loss, test_acc = test(model, test_dataloader, device)
+    test_loss, test_acc = test(model, test_dataloader, get_device())
 
     # Return the evaluation metrics
     return MetricRecord({"accuracy": test_acc, "loss": test_loss})

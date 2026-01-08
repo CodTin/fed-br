@@ -18,3 +18,8 @@ class ComputationConstant(Enum):
     CYCLES_PER_SAMPLE = 2e6
     E_DEC = 1e-10  # 解码能耗 (J)
     E_AGG = 1e-11  # 聚合能耗 (j)
+
+
+@unique
+class PrivacyLeakageConstant(Enum):
+    ALPHA_0 = 4.0
