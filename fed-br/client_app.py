@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from common import get_device, setup_logger, unwrap_state_dict
 
+from .system_model import Communication
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
@@ -49,7 +50,7 @@ def train(msg: Message, context: Context) -> Message:
     max_grad_norm = float(context.run_config["max-grad-norm"])
     lr = float(cast("float", cast("object", msg.content["config"]["lr"])))
 
-    arrays = cast("ArrayRecord", msg.content["arrays"])
+    arrays = msg.content["arrays"]
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
@@ -58,6 +59,12 @@ def train(msg: Message, context: Context) -> Message:
 
     # Load the data
     pid, noise_multiplier, trainloader, _ = partition_loader(context)
+
+    # 计算 Communication Model
+    model_size = Communication.get_model_size_bits(model)
+    h_i = Communication.get_channel_gain(pid)
+    r_i = Communication.compute_transmission_rate(h_i)
+    comm_latency, comm_energy = Communication.compute_latency_and_energy(model_size, r_i)
 
     privacy_engine = PrivacyEngine(secure_mode=False)
 
@@ -89,12 +96,17 @@ def train(msg: Message, context: Context) -> Message:
         "target_delta": float(target_delta),
         "noise_multiplier": float(noise_multiplier),
         "max_grad_norm": float(max_grad_norm),
+        # Communication Model Metrics
+        "comm_latency": float(comm_latency),
+        "comm_energy": float(comm_energy),
+        "transmission_rate": float(r_i)
     }
     metric_record = MetricRecord(metrics)
     content = RecordDict({"arrays": model_record, "metrics": metric_record})
     logger.info(
-        f"[client {pid}] epsilon(delta={target_delta})={epsilon:.2f}, "
-        f"noise={noise_multiplier}, max_grad_norm={max_grad_norm}"
+        f"[Client {pid}] epsilon(delta={target_delta})={epsilon:.2f}, "
+        f"noise={noise_multiplier}, max_grad_norm={max_grad_norm} "
+        f"communicate_latency={comm_latency:.4f}, communicate_energy={comm_energy:.4f}"
     )
     return Message(content=content, reply_to=msg)
 
@@ -105,7 +117,7 @@ def evaluate(msg: Message, context: Context) -> Message:
 
     # Load the model and initialize it with the received weights
     model = Net()
-    arrays = cast("ArrayRecord", msg.content["arrays"])
+    arrays = msg.content["arrays"]
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)

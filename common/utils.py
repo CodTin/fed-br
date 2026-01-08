@@ -123,7 +123,7 @@ def get_device(cuda_num: int = 0) -> Device:
         device = f"cuda:{cuda_num}"
 
     # 使用 logger 替代 print
-    logger.info(f"Using device: {device}")
+    # logger.info(f"Using device: {device}")
 
     return device
 
