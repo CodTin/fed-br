@@ -107,7 +107,7 @@ def train(msg: Message, context: Context) -> Message:
     optim = SGD(params=model.parameters(), lr=lr, momentum=0.9)
 
     # Load the data
-    pid, noise_multiplier, trainloader, _ = partition_loader(context)
+    pid, noise_multiplier, train_loader, _ = partition_loader(context)
 
     # 计算 Communication Model
     model_size = Communication.get_model_size_bits(model)
@@ -118,7 +118,7 @@ def train(msg: Message, context: Context) -> Message:
     )
 
     # 计算 Computation Model
-    num_samples = len(cast("Sized", cast("object", trainloader.dataset)))
+    num_samples = len(cast("Sized", cast("object", train_loader.dataset)))
     f_i, kappa_i = Computation.get_client_hardware_params(pid)
     comp_latency, comp_energy = Computation.compute_local_latency_and_energy(
         num_sample=num_samples, epochs=local_epochs, f_i=f_i, kappa_i=kappa_i
@@ -135,10 +135,10 @@ def train(msg: Message, context: Context) -> Message:
 
     privacy_engine = PrivacyEngine(secure_mode=False)
 
-    model, optim, trainloader = privacy_engine.make_private(
+    model, optim, train_loader = privacy_engine.make_private(
         module=model,
         optimizer=optim,
-        data_loader=trainloader,
+        data_loader=train_loader,
         noise_multiplier=noise_multiplier,
         max_grad_norm=max_grad_norm,
     )
@@ -147,7 +147,7 @@ def train(msg: Message, context: Context) -> Message:
     local_epochs_int = int(context.run_config["local-epochs"])
     train_loss, epsilon = train_fn(
         model,
-        trainloader,
+        train_loader,
         local_epochs_int,
         device,
         target_delta=target_delta,
@@ -159,7 +159,7 @@ def train(msg: Message, context: Context) -> Message:
     model_record = ArrayRecord(unwrap_state_dict(model))
     metrics: dict[str, int | float] = {
         "train_loss": train_loss,
-        "num-examples": len(cast("Sized", trainloader.dataset)),
+        "num-examples": len(cast("Sized", train_loader.dataset)),
         "epsilon": float(epsilon),
         "target_delta": float(target_delta),
         "noise_multiplier": float(noise_multiplier),
@@ -217,13 +217,13 @@ def evaluate(msg: Message, context: Context) -> Message:
     model.to(device)
 
     # Load the data
-    _, _, _, valloader = partition_loader(context)
+    _, _, _, val_loader = partition_loader(context)
 
     # Call the evaluation function
     device_str = get_device()
     eval_loss, eval_acc = test_fn(
         model,
-        valloader,
+        val_loader,
         device_str,
     )
 
@@ -232,7 +232,7 @@ def evaluate(msg: Message, context: Context) -> Message:
         {
             "eval_loss": eval_loss,
             "eval_acc": eval_acc,
-            "num-examples": len(cast("Sized", cast("object", valloader.dataset))),
+            "num-examples": len(cast("Sized", cast("object", val_loader.dataset))),
         }
     )
     content = RecordDict({"metrics": metric_record})
