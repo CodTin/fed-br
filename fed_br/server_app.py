@@ -1,13 +1,17 @@
+import warnings
+
 import torch
 from flwr.app import ArrayRecord, ConfigRecord, Context, MetricRecord
 from flwr.serverapp import Grid, ServerApp
-from flwr.serverapp.strategy import FedAvg
 
 from common import get_device
 from common.const import FINAL_MODEL_PATH
 from common.logging import configure_flwr_logging
 
+from .strategy import FedBr
 from .task import Net, load_centralized_dataset, test
+
+warnings.filterwarnings("ignore")
 
 configure_flwr_logging()
 
@@ -48,7 +52,7 @@ def main(grid: Grid, context: Context) -> None:
     arrays = ArrayRecord(global_model.state_dict())
 
     # Initialize FedAvg strategy
-    strategy = FedAvg(fraction_evaluate=fraction_evaluate)
+    strategy = FedBr(fraction_evaluate=fraction_evaluate)
 
     # Start strategy, run FedAvg for `num_rounds`
     result = strategy.start(

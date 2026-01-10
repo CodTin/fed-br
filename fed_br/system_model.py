@@ -13,13 +13,16 @@ Attributes:
 """
 
 import math
+from typing import Any
 
 import numpy as np
 from torch import nn
+from torch.utils.data import DataLoader
 
 from common.const import (
     CommunicationConstant,
     ComputationConstant,
+    GlobalConvergenceConstant,
     PrivacyLeakageConstant,
 )
 
@@ -249,3 +252,77 @@ class PrivacyLeakage:
         )
 
         return term1 + term2
+
+
+class GlobalConvergence:
+    @staticmethod
+    def estimate_data_quality(dataloader: DataLoader[Any]) -> float:
+        num_classes = 10
+        label_counts = np.zeros(num_classes)
+        total_samples = 0
+
+        dataset = dataloader.dataset
+
+        try:
+            if hasattr(dataset, "indices") and hasattr(dataset, "dataset"):
+                targets = np.array(dataset.dataset.targets)[dataset.indices]
+            elif hasattr(dataset, "targets"):
+                targets = np.array(dataset.targets)
+            else:
+                targets_list = []
+                for batch in dataloader:
+                    labels = batch["label"]
+                    targets_list.extend(labels.numpy())
+                targets = np.array(targets_list)
+
+            unique, counts = np.unique(targets, return_counts=True)
+            for cls, count in zip(unique, counts, strict=False):
+                label_counts[cls] = count
+            total_samples = len(targets)
+
+        except Exception as e:
+            print(f"Error occurred in `estimate_data_quality`: {e}")
+            return GlobalConvergenceConstant.THETA_BASE.value
+
+        if total_samples == 0:
+            return GlobalConvergenceConstant.THETA_BASE.value
+
+        # 计算概率分布 p_k
+        p_dist = label_counts / total_samples
+
+        # 计算与均匀分布 u_k 的 L1 距离
+        u_dist = np.full(num_classes, 1.0 / num_classes)
+        l1_distance = np.sum(np.abs(p_dist - u_dist))
+
+        # 映射到 theta_i
+        theta_i = (
+            GlobalConvergenceConstant.THETA_BASE.value
+            + GlobalConvergenceConstant.THETA_PENALTY.value * (l1_distance / 1.8)
+        )
+
+        return float(theta_i)
+
+    @staticmethod
+    def compute_global_error(total_epochs: float, noise_impact_sum: float) -> float:
+        if total_epochs <= 0:
+            return float("inf")
+
+        term1 = GlobalConvergenceConstant.A / total_epochs
+        term2 = noise_impact_sum
+
+        return term1 + term2
+
+    @staticmethod
+    def compute_local_noise_impact(
+        num_samples: int, total_samples: int, noise_multiplier: float, theta_i: float
+    ) -> float:
+        if total_samples == 0:
+            return 0.0
+
+        q_i = num_samples / total_samples
+
+        c_sigma = noise_multiplier**2
+
+        impact = q_i * (GlobalConvergenceConstant.B.value + c_sigma * theta_i)
+
+        return impact

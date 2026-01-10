@@ -23,3 +23,12 @@ class ComputationConstant(Enum):
 @unique
 class PrivacyLeakageConstant(Enum):
     ALPHA_0 = 4.0
+
+
+@unique
+class GlobalConvergenceConstant(Enum):
+    A = 50.0
+    B = 0.0
+
+    THETA_BASE = 1.0  # 基础敏感度
+    THETA_PENALTY = 0.5  # 异构性惩罚系数

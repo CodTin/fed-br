@@ -1,3 +1,4 @@
+import warnings
 from typing import TYPE_CHECKING, Any, cast
 
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
@@ -7,12 +8,15 @@ from torch.optim import SGD
 from torch.utils.data import DataLoader
 
 from common import get_device, unwrap_state_dict
+from common.const import GlobalConvergenceConstant
 from common.logging import configure_flwr_logging
 
-from .system_model import Communication, Computation, PrivacyLeakage
+from .system_model import Communication, Computation, GlobalConvergence, PrivacyLeakage
 from .task import Net, load_data
 from .task import test as test_fn
 from .task import train as train_fn
+
+warnings.filterwarnings("ignore")
 
 if TYPE_CHECKING:
     from collections.abc import Sized
@@ -143,6 +147,10 @@ def train(msg: Message, context: Context) -> Message:
         max_grad_norm=max_grad_norm,
     )
 
+    theta_i = GlobalConvergence.estimate_data_quality(train_loader)
+
+    local_impact_factor = GlobalConvergenceConstant.B.value + (noise_multiplier ** 2) * theta_i
+
     # Call the training function
     local_epochs_int = int(context.run_config["local-epochs"])
     train_loss, epsilon = train_fn(
@@ -176,6 +184,9 @@ def train(msg: Message, context: Context) -> Message:
         "total_energy": float(comm_energy + comp_energy),
         # Privacy
         "privacy_cost": float(privacy_cost),
+        # GlobalConvergence
+        "theta_i": float(theta_i),
+        "local_impact_factor": float(local_impact_factor)
     }
     metric_record = MetricRecord(
         cast("dict[str, int | float | list[int] | list[float]] | None", metrics)
