@@ -259,7 +259,6 @@ class GlobalConvergence:
     def estimate_data_quality(dataloader: DataLoader[Any]) -> float:
         num_classes = 10
         label_counts = np.zeros(num_classes)
-        total_samples = 0
 
         dataset = dataloader.dataset
 
