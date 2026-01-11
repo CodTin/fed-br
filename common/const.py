@@ -32,3 +32,14 @@ class GlobalConvergenceConstant(Enum):
 
     THETA_BASE = 1.0  # 基础敏感度
     THETA_PENALTY = 0.5  # 异构性惩罚系数
+
+
+@unique
+class GameLogicConstants(Enum):
+    EPOCH_OPTIONS = (1, 2, 3, 4, 5, 6, 8, 10)  # 离散的 epochs 选项
+
+    NOISE_OPTIONS = (0.5, 0.7, 1.0, 1.2, 1.5, 2.0, 3.0)  # 离散的 noise multipliers 选项
+
+    ALPHA = 1.0
+    BETA = 1.2
+    GAMMA = 2000.0

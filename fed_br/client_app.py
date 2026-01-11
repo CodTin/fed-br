@@ -1,3 +1,4 @@
+import logging
 import warnings
 from typing import TYPE_CHECKING, Any, cast
 
@@ -11,6 +12,7 @@ from common import get_device, unwrap_state_dict
 from common.const import GlobalConvergenceConstant
 from common.logging import configure_flwr_logging
 
+from .game_logic import GameLogic
 from .system_model import Communication, Computation, GlobalConvergence, PrivacyLeakage
 from .task import Net, load_data
 from .task import test as test_fn
@@ -24,6 +26,9 @@ if TYPE_CHECKING:
 configure_flwr_logging()
 
 app = ClientApp()
+
+CLIENT_STATES: dict[int, dict[str, Any]] = {}
+logger = logging.getLogger("flwr")
 
 
 def partition_loader(
@@ -103,6 +108,11 @@ def train(msg: Message, context: Context) -> Message:
     batch_size = int(context.run_config["batch-size"])
     local_epochs = int(context.run_config["local-epochs"])
 
+    server_config = msg.content["config"]
+    global_t_total = float(server_config.get("global_t_total", 0.0))
+    global_noise_impact = float(server_config.get("global_noise_impact", 0.0))
+    global_total_samples = int(server_config.get("global_total_samples", 0))
+
     arrays = cast("ArrayRecord", msg.content["arrays"])
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
@@ -117,25 +127,10 @@ def train(msg: Message, context: Context) -> Message:
     model_size = Communication.get_model_size_bits(model)
     h_i = Communication.get_channel_gain(pid)
     r_i = Communication.compute_transmission_rate(h_i)
-    comm_latency, comm_energy = Communication.compute_latency_and_energy(
-        model_size, r_i
-    )
 
     # 计算 Computation Model
     num_samples = len(cast("Sized", cast("object", train_loader.dataset)))
     f_i, kappa_i = Computation.get_client_hardware_params(pid)
-    comp_latency, comp_energy = Computation.compute_local_latency_and_energy(
-        num_sample=num_samples, epochs=local_epochs, f_i=f_i, kappa_i=kappa_i
-    )
-
-    # 计算 PrivacyLeakage Model
-    privacy_cost = PrivacyLeakage.compute_privacy_cost(
-        num_samples=num_samples,
-        batch_size=batch_size,
-        epochs=local_epochs,
-        noise_multiplier=noise_multiplier,
-        target_delta=target_delta,
-    )
 
     privacy_engine = PrivacyEngine(secure_mode=False)
 
@@ -149,18 +144,64 @@ def train(msg: Message, context: Context) -> Message:
 
     theta_i = GlobalConvergence.estimate_data_quality(train_loader)
 
-    local_impact_factor = GlobalConvergenceConstant.B.value + (noise_multiplier ** 2) * theta_i
+    local_impact_factor = (
+        GlobalConvergenceConstant.B.value + (noise_multiplier**2) * theta_i
+    )
+
+    if pid not in CLIENT_STATES:
+        CLIENT_STATES[pid] = {"prev_e": 1, "prev_impact": local_impact_factor}
+
+    prev_state = CLIENT_STATES[pid]
+
+    best_e, best_noise, min_cost = GameLogic.find_best_response(
+        global_t_total_old=global_t_total,
+        global_noise_impact_old=global_noise_impact,
+        prev_e=prev_state["prev_e"],
+        prev_local_impact=prev_state["prev_impact"],
+        num_samples=num_samples,
+        total_samples_global=global_total_samples,
+        batch_size=batch_size,
+        target_delta=target_delta,
+        f_i=f_i,
+        kappa_i=kappa_i,
+        theta_i=theta_i,
+        h_i=h_i,
+        model_size_bites=model_size,
+    )
+
+    logger.info(
+        f"[Client id {pid}]: Client choose Strategy(e={best_e}, noise={best_noise}, cost={min_cost})"
+    )
+
+    current_local_impact = GlobalConvergenceConstant.B.value + (best_noise**2) * theta_i
+    CLIENT_STATES[pid] = {"prev_e": best_e, "prev_impact": current_local_impact}
 
     # Call the training function
-    local_epochs_int = int(context.run_config["local-epochs"])
+    local_epochs = best_e
+    noise_multiplier = best_noise
     train_loss, epsilon = train_fn(
         model,
         train_loader,
-        local_epochs_int,
+        local_epochs,
         device,
         target_delta=target_delta,
         privacy_engine=privacy_engine,
         optimizer=optim,
+    )
+
+    comm_latency, comm_energy = Communication.compute_latency_and_energy(
+        model_size, r_i
+    )
+    comp_latency, comp_energy = Computation.compute_local_latency_and_energy(
+        num_sample=num_samples, epochs=local_epochs, f_i=f_i, kappa_i=kappa_i
+    )
+    # 计算 PrivacyLeakage Model
+    privacy_cost = PrivacyLeakage.compute_privacy_cost(
+        num_samples=num_samples,
+        batch_size=batch_size,
+        epochs=local_epochs,
+        noise_multiplier=noise_multiplier,
+        target_delta=target_delta,
     )
 
     # Construct and return reply Message
@@ -170,7 +211,7 @@ def train(msg: Message, context: Context) -> Message:
         "num-examples": len(cast("Sized", train_loader.dataset)),
         "epsilon": float(epsilon),
         "target_delta": float(target_delta),
-        "noise_multiplier": float(noise_multiplier),
+        # "noise_multiplier": float(noise_multiplier),
         "max_grad_norm": float(max_grad_norm),
         # Communication Model Metrics
         "comm_latency": float(comm_latency),
@@ -186,7 +227,11 @@ def train(msg: Message, context: Context) -> Message:
         "privacy_cost": float(privacy_cost),
         # GlobalConvergence
         "theta_i": float(theta_i),
-        "local_impact_factor": float(local_impact_factor)
+        # "local_impact_factor": float(local_impact_factor),
+        # 博弈决策结果
+        "local_epochs": int(local_epochs),
+        "noise_multiplier": float(noise_multiplier),
+        "local_impact_factor": float(current_local_impact),
     }
     metric_record = MetricRecord(
         cast("dict[str, int | float | list[int] | list[float]] | None", metrics)

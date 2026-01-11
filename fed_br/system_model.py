@@ -306,7 +306,7 @@ class GlobalConvergence:
         if total_epochs <= 0:
             return float("inf")
 
-        term1 = GlobalConvergenceConstant.A / total_epochs
+        term1 = GlobalConvergenceConstant.A.value / total_epochs
         term2 = noise_impact_sum
 
         return term1 + term2
