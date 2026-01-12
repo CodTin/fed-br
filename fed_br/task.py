@@ -15,86 +15,35 @@ if TYPE_CHECKING:
     from collections.abc import Sized
 
 
-class LightweightCNN(nn.Module):
-    """
-    Lightweight CNN model for CIFAR-10 classification with dropout regularization.
-
-    Layer-by-layer breakdown:
-    - Conv2d(3, 32, kernel=3) -> ReLU -> MaxPool2d(2) -> Dropout2d(0.25)    # Feature extraction
-    - Conv2d(32, 64, kernel=3) -> ReLU -> MaxPool2d(2) -> Dropout2d(0.25)   # Feature refinement
-    - Conv2d(64, 64, kernel=3) -> ReLU                                       # High-level features
-    - Flatten with automatic dimension inference                             # Transition to classification
-    - Linear(auto_inferred, 64) -> ReLU -> Dropout(0.5)                    # Feature compression
-    - Linear(64, 10) -> Output (10 classes)                                 # Final classification
-    """
-
-    def __init__(self) -> None:
-        """
-        初始化轻量级 CNN 模型。
-
-        构建模型各层:
-        - 3 个卷积层用于特征提取
-        - 2 个全连接层用于分类
-        - Dropout 层用于正则化
-
-        Attributes:
-            conv1: 第一个卷积层 (3 -> 32 channels)
-            conv2: 第二个卷积层 (32 -> 64 channels)
-            conv3: 第三个卷积层 (64 -> 64 channels)
-            pool: 最大池化层 (2x2)
-            dropout_conv: 卷积层 Dropout (p=0.25)
-            dropout_fc: 全连接层 Dropout (p=0.5)
-            fc1: 第一个全连接层 (1024 -> 64)
-            fc2: 第二个全连接层 (64 -> 10)
-        """
+class CNN(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3)
-        self.conv3 = nn.Conv2d(64, 64, kernel_size=3)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.dropout_conv = nn.Dropout2d(0.25)  # Dropout for convolutional layers
-        self.dropout_fc = nn.Dropout(0.5)  # Dropout for fully connected layers
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(64 * 4 * 4, 512),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(512, 10),
+        )
 
-        self.fc1 = nn.Linear(4 * 4 * 64, 64)
-        self.fc2 = nn.Linear(64, 10)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        前向传播函数。
-
-        Args:
-            x: 输入张量,形状为 (batch_size, 3, 32, 32)
-
-        Returns:
-            torch.Tensor: 输出 logits,形状为 (batch_size, 10)
-
-        Example:
-            >>> import torch
-            >>> model = LightweightCNN()
-            >>> x = torch.randn(32, 3, 32, 32)
-            >>> y = model(x)
-            >>> y.shape  # torch.Size([32, 10])
-        """
-        # Layer 1: Feature extraction with dropout
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.dropout_conv(x)
-
-        # Layer 2: Feature refinement with dropout
-        x = self.pool(F.relu(self.conv2(x)))
-        x = self.dropout_conv(x)
-
-        # Layer 3: High-level features
-        x = F.relu(self.conv3(x))
-
-        # Flatten and fully connected layers
-        x = x.view(-1, 4 * 4 * 64)
-        x = F.relu(self.fc1(x))
-        x = self.dropout_fc(x)
-        x = self.fc2(x)
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
         return x
 
 
-Net = LightweightCNN
+Net = CNN
 
 
 fds = None  # Cache FederatedDataset
