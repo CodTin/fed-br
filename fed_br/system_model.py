@@ -212,7 +212,9 @@ class Computation:
 
         Note:
             能耗 = num_clients x model_size x (E_DEC + E_AGG)
+
             其中:
+
             - E_DEC: 解码能耗系数
             - E_AGG: 聚合能耗系数
 
@@ -230,6 +232,20 @@ class Computation:
 
 
 class PrivacyLeakage:
+    """
+    隐私泄露模型。
+
+    基于差分隐私理论计算隐私成本（epsilon 值）。
+    用于评估联邦学习过程中各客户端的隐私泄露程度。
+
+    Example:
+        >>> cost = PrivacyLeakage.compute_privacy_cost(
+        ...     num_samples=100, batch_size=32, epochs=1,
+        ...     noise_multiplier=1.0, target_delta=1e-5
+        ... )
+        >>> print(f"Privacy cost: {cost:.2f}")
+    """
+
     @staticmethod
     def compute_privacy_cost(
         num_samples: int,
@@ -238,6 +254,34 @@ class PrivacyLeakage:
         noise_multiplier: float,
         target_delta: float,
     ) -> float:
+        """
+        计算差分隐私成本（epsilon 值）。
+
+        基于 Moments Accountant 方法计算给定训练配置下的
+        差分隐私预算消耗。
+
+        Args:
+            num_samples: 本地训练样本数
+            batch_size: 批次大小
+            epochs: 本地训练轮数
+            noise_multiplier: 差分隐私噪声乘数
+            target_delta: 差分隐私目标 delta 值
+
+        Returns:
+            float: 隐私成本（epsilon 值）。如果 noise_multiplier <= 0
+                   或 num_samples <= 0，返回无穷大
+
+        Note:
+            计算公式基于 Moments Accountant 近似方法，
+            隐私成本随 epochs 和 batch_size 增大而增加，
+            随 noise_multiplier 增大而减小。
+
+        Example:
+            >>> epsilon = PrivacyLeakage.compute_privacy_cost(
+            ...     500, 32, 1, 1.0, 1e-5
+            ... )
+            >>> print(f"Epsilon: {epsilon:.4f}")
+        """
         if noise_multiplier <= 0 or num_samples <= 0:
             return float("inf")
 
@@ -255,8 +299,42 @@ class PrivacyLeakage:
 
 
 class GlobalConvergence:
+    """
+    全局收敛模型。
+
+    用于估算数据质量因子和全局收敛误差。
+    数据质量因子反映客户端数据分布与均匀分布的差异，
+    收敛误差用于评估全局模型训练过程中的收敛程度。
+
+    Example:
+        >>> theta = GlobalConvergence.estimate_data_quality(test_loader)
+        >>> error = GlobalConvergence.compute_global_error(100, 0.5)
+    """
+
     @staticmethod
     def estimate_data_quality(dataloader: DataLoader[Any]) -> float:
+        """
+        估算客户端数据质量因子。
+
+        通过分析数据集中各类别的分布，计算与均匀分布的
+        差异程度来估算数据质量因子 theta_i。
+
+        Args:
+            dataloader: 包含标签信息的数据加载器
+
+        Returns:
+            float: 数据质量因子 theta_i，值越大表示数据分布越不均衡
+
+        Note:
+            计算步骤：
+            1. 统计各类别样本数
+            2. 计算与均匀分布的 L1 距离
+            3. 将 L1 距离映射到 [0.5, 1.0] 范围内的 theta 值
+
+        Example:
+            >>> theta = GlobalConvergence.estimate_data_quality(train_loader)
+            >>> print(f"Data quality factor: {theta:.4f}")
+        """
         num_classes = 10
         label_counts = np.zeros(num_classes)
 
@@ -279,8 +357,10 @@ class GlobalConvergence:
                 label_counts[cls] = count
             total_samples = len(targets)
 
-        except Exception as e:
-            print(f"Error occurred in `estimate_data_quality`: {e}")
+        except Exception:
+            from loguru import logger
+
+            logger.warning("Error occurred in `estimate_data_quality`", exc_info=True)
             return GlobalConvergenceConstant.THETA_BASE.value
 
         if total_samples == 0:
@@ -303,6 +383,26 @@ class GlobalConvergence:
 
     @staticmethod
     def compute_global_error(total_epochs: float, noise_impact_sum: float) -> float:
+        """
+        计算全局收敛误差。
+
+        根据总训练轮数和噪声影响计算全局模型的收敛误差。
+
+        Args:
+            total_epochs: 所有客户端累计的训练轮数
+            noise_impact_sum: 所有客户端噪声影响的加权和
+
+        Returns:
+            float: 全局收敛误差。如果 total_epochs <= 0，返回无穷大
+
+        Note:
+            误差公式: error = A / total_epochs + noise_impact_sum
+            训练轮数越多，误差越小；噪声影响越大，误差越大。
+
+        Example:
+            >>> error = GlobalConvergence.compute_global_error(100, 0.5)
+            >>> print(f"Global convergence error: {error:.4f}")
+        """
         if total_epochs <= 0:
             return float("inf")
 
@@ -315,6 +415,31 @@ class GlobalConvergence:
     def compute_local_noise_impact(
         num_samples: int, total_samples: int, noise_multiplier: float, theta_i: float
     ) -> float:
+        """
+        计算单个客户端的噪声影响因子。
+
+        根据客户端样本占比、噪声乘数和数据质量因子计算
+        该客户端对全局收敛的噪声影响贡献。
+
+        Args:
+            num_samples: 本地样本数
+            total_samples: 全局总样本数
+            noise_multiplier: 差分隐私噪声乘数
+            theta_i: 本地数据质量因子
+
+        Returns:
+            float: 客户端的噪声影响因子
+
+        Note:
+            计算公式: impact = q_i * (B + sigma^2 * theta_i)
+            其中 q_i = num_samples / total_samples
+
+        Example:
+            >>> impact = GlobalConvergence.compute_local_noise_impact(
+            ...     500, 5000, 1.0, 0.8
+            ... )
+            >>> print(f"Local noise impact: {impact:.4f}")
+        """
         if total_samples == 0:
             return 0.0
 

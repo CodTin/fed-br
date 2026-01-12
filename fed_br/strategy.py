@@ -5,13 +5,60 @@ from flwr.serverapp.strategy import FedAvg
 
 
 class FedBr(FedAvg):
+    """
+    FedBr 聚合策略（扩展 FedAvg）。
+
+    基于博弈论优化的联邦学习聚合策略，扩展自 FedAvg。
+    维护全局状态（总训练轮数、噪声影响、样本数），
+    并将这些信息注入到客户端训练配置中，使客户端能够
+    计算最优的本地训练参数（epoch 数和噪声乘数）。
+
+    Attributes:
+        current_t_total: 累计的全局训练轮数
+        current_global_noise_impact: 加权平均的全局噪声影响
+        total_samples: 当前轮的参与样本总数
+
+    Example:
+        >>> strategy = FedBr()
+        >>> print(f"Initial t_total: {strategy.current_t_total}")
+    """
+
     def __init__(self, **kwargs):
+        """
+        初始化 FedBr 策略。
+
+        Args:
+            **kwargs: 传递给父类 FedAvg 的参数
+        """
         super().__init__(**kwargs)
         self.current_t_total: float = 0.0
         self.current_global_noise_impact: float = 0.0
         self.total_samples: int = 0
 
     def configure_train(self, server_round: int, *args, **kwargs) -> Iterable[Message]:
+        """
+        配置客户端训练参数。
+
+        重写父类方法，在每个训练轮次开始时，将全局状态信息
+        注入到每个客户端的配置中。这些信息包括：
+        - 全局累计训练轮数
+        - 全局噪声影响
+        - 全局样本数
+        - 当前轮次
+
+        Args:
+            server_round: 当前训练轮次
+            *args: 传递给父类的位置参数
+            **kwargs: 传递给父类的关键字参数
+
+        Returns:
+            Iterable[Message]: 更新后的客户端指令消息列表
+
+        Example:
+            >>> messages = strategy.configure_train(server_round=1)
+            >>> for msg in messages:
+            ...     print(msg.content["config"]["global_t_total"])
+        """
         client_instructions = super().configure_train(server_round, *args, **kwargs)
 
         updated_instructions = []
@@ -36,6 +83,30 @@ class FedBr(FedAvg):
         server_round: int,
         replies: Iterable[Message],
     ) -> tuple[ArrayRecord | None, MetricRecord | None]:
+        """
+        聚合客户端训练结果并更新全局状态。
+
+        重写父类方法，从客户端回复中提取训练指标，
+        更新全局状态（总训练轮数、噪声影响、样本数），
+        并将这些状态信息记录到聚合指标中。
+
+        Args:
+            server_round: 当前训练轮次
+            replies: 客户端返回的消息迭代器
+
+        Returns:
+            tuple: (聚合后的模型参数 ArrayRecord, 聚合后的指标 MetricRecord)
+
+        Note:
+            从每个客户端的 metrics 中提取:
+            - num-examples: 样本数
+            - local_epochs: 本地训练轮数
+            - local_impact_factor: 本地噪声影响因子
+
+        Example:
+            >>> aggregated, metrics = strategy.aggregate_train(1, client_replies)
+            >>> print(metrics["global_t_total"])
+        """
         # 1. 调用父类方法聚合模型参数
         aggregated_arrays, aggregated_metrics = super().aggregate_train(
             server_round, replies
