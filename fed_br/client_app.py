@@ -55,7 +55,7 @@ def partition_loader(
     num_partitions = int(ctx.node_config["num-partitions"])
     batch_size = int(ctx.run_config["batch-size"])
 
-    noise = 1.0 if partition_id % 2 == 0 else 1.5
+    noise = 0.5 if partition_id % 2 == 0 else 0.6
 
     _train, _eval = load_data(partition_id, num_partitions, batch_size)
 

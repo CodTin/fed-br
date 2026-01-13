@@ -32,13 +32,13 @@ serverapp = "fed_br.server_app:app"
 clientapp = "fed_br.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 10
+num-server-rounds = 20
 fraction-evaluate = 1
-local-epochs = 1
-learning-rate = 0.005
-batch-size = 64
+local-epochs = 5
+learning-rate = 0.01
+batch-size = 128
 target-delta = 1e-5
-max-grad-norm = 1.0
+max-grad-norm = 2.0
 
 [tool.flwr.federations]
 default = "local-simulation"

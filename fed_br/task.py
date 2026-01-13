@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F  # noqa: N812
 from datasets import load_dataset
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner
@@ -33,7 +32,7 @@ class CNN(nn.Module):
             nn.Flatten(),
             nn.Linear(64 * 4 * 4, 512),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
             nn.Linear(512, 10),
         )
 
