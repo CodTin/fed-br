@@ -26,6 +26,10 @@ FINAL_MODEL_DIR = "outputs"
 FINAL_MODEL_NAME = "final_model.pt"
 FINAL_MODEL_PATH = f"{FINAL_MODEL_DIR}/{FINAL_MODEL_NAME}"
 
+CLIENT_METRICS_PREFIX = "client_metrics"
+CLIENT_METRICS_PATTERN = f"{CLIENT_METRICS_PREFIX}_*.jsonl"
+CLIENT_PLOTS_DIR = f"../{FINAL_MODEL_DIR}/client_plots"
+
 
 @unique
 class CommunicationConstant(Enum):
@@ -91,7 +95,7 @@ class PrivacyLeakageConstant(Enum):
         >>> alpha = PrivacyLeakageConstant.ALPHA_0.value
         >>> print(f"Alpha_0: {alpha}")
     """
-    ALPHA_0 = 4.0
+    ALPHA_0 = [1 + x / 10.0 for x in range(1, 100)] + list(range(12, 64))
 
 
 @unique
@@ -141,10 +145,10 @@ class GameLogicConstants(Enum):
         >>> epochs = GameLogicConstants.EPOCH_OPTIONS.value
         >>> print(f"Available epochs: {epochs}")
     """
-    EPOCH_OPTIONS = (1, 2, 3, 4, 5, 6, 8, 10)  # 离散的 epochs 选项
+    EPOCH_OPTIONS = (1, 2, 3, 4, 5)  # 离散的 epochs 选项
 
-    NOISE_OPTIONS = (0.5, 0.7, 1.0, 1.2, 1.5, 2.0, 3.0)  # 离散的 noise multipliers 选项
+    NOISE_OPTIONS = (0.5, 0.7, 1.0, 1.2, 1.5, 2.0)  # 离散的 noise multipliers 选项
 
     ALPHA = 1.0
-    BETA = 1.2
-    GAMMA = 2000.0
+    BETA = 50
+    GAMMA = 100.0

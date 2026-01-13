@@ -124,9 +124,14 @@ class GameLogic:
                 my_old_contribution = q_i * prev_local_impact
                 my_new_contribution = q_i * new_local_impact
 
-                est_global_noise_impact = (
-                    global_noise_impact_old - my_old_contribution + my_new_contribution
-                )
+
+                if global_t_total_old == 0:
+                    est_global_noise_impact = my_new_contribution
+                else:
+                    est_global_noise_impact = (
+                        global_noise_impact_old - my_old_contribution + my_new_contribution
+                    )
+
                 est_t_total = global_t_total_old - prev_e + e
 
                 j_err = GlobalConvergence.compute_global_error(

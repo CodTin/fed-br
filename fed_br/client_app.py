@@ -207,6 +207,7 @@ def train(msg: Message, context: Context) -> Message:
     # Construct and return reply Message
     model_record = ArrayRecord(unwrap_state_dict(model))
     metrics: dict[str, int | float] = {
+        "client_id": pid,
         "train_loss": train_loss,
         "num-examples": len(cast("Sized", train_loader.dataset)),
         "epsilon": float(epsilon),

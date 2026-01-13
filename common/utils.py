@@ -4,7 +4,7 @@ import torch
 from torch import Tensor, nn
 
 
-def get_device(cuda_num: int = 0) -> str:
+def get_device(cuda_num: int = 1) -> str:
     """自动检测并返回最优计算设备。
 
     优先检测 CUDA GPU,其次是 MPS (Apple Silicon),最后是 CPU。

@@ -16,6 +16,7 @@ import math
 from typing import Any
 
 import numpy as np
+from opacus.accountants.rdp import privacy_analysis
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -287,15 +288,28 @@ class PrivacyLeakage:
 
         gamma_i = batch_size / num_samples
 
-        term1 = (epochs * gamma_i * PrivacyLeakageConstant.ALPHA_0.value) / (
-            2 * (noise_multiplier**2)
+        steps = int(epochs * (num_samples / batch_size))
+
+        alphas = PrivacyLeakageConstant.ALPHA_0.value
+
+        rdp = privacy_analysis.compute_rdp(q=gamma_i, noise_multiplier=noise_multiplier, steps=steps, orders=alphas)
+
+        # term1 = (epochs * gamma_i * PrivacyLeakageConstant.ALPHA_0.value) / (
+        #     2 * (noise_multiplier**2)
+        # )
+        #
+        # term2 = math.log(1.0 / target_delta) / (
+        #     PrivacyLeakageConstant.ALPHA_0.value - 1
+        # )
+
+        epsilon, best_alpha = privacy_analysis.get_privacy_spent(
+            orders=alphas,
+            rdp=rdp,
+            delta=target_delta,
         )
 
-        term2 = math.log(1.0 / target_delta) / (
-            PrivacyLeakageConstant.ALPHA_0.value - 1
-        )
-
-        return term1 + term2
+        # return term1 + term2
+        return epsilon
 
 
 class GlobalConvergence:

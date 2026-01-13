@@ -1,7 +1,13 @@
 from collections.abc import Iterable
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from flwr.common import ArrayRecord, ConfigRecord, Message, MetricRecord
 from flwr.serverapp.strategy import FedAvg
+
+from common.const import FINAL_MODEL_DIR, CLIENT_METRICS_PREFIX
+from fed_br.metrics_logger import ClientMetricLogger
 
 
 class FedBr(FedAvg):
@@ -34,6 +40,21 @@ class FedBr(FedAvg):
         self.current_t_total: float = 0.0
         self.current_global_noise_impact: float = 0.0
         self.total_samples: int = 0
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        metrics_path = Path(FINAL_MODEL_DIR) / f"{CLIENT_METRICS_PREFIX}_{timestamp}.jsonl"
+        self.metrics_logger = ClientMetricLogger(metrics_path)
+
+    @staticmethod
+    def _extract_client_metrics(metrics_record: MetricRecord) -> dict[str, float | int]:
+        metrics: dict[str, float | int] = {}
+        for key, value in metrics_record.items():
+            if key == "client_id":
+                continue
+            if isinstance(value, bool):
+                metrics[key] = int(value)
+            elif isinstance(value, (int, float)):
+                metrics[key] = value
+        return metrics
 
     def configure_train(self, server_round: int, *args, **kwargs) -> Iterable[Message]:
         """
@@ -127,6 +148,15 @@ class FedBr(FedAvg):
                 continue
 
             metrics_record = msg.content["metrics"]
+            client_id = int(metrics_record.get("client_id", -1))
+
+            if client_id >= 0:
+                self.metrics_logger.log(
+                    round_number=server_round,
+                    phase="train",
+                    client_id=client_id,
+                    metrics=self._extract_client_metrics(metrics_record)
+                )
 
             # 获取样本数 (通常在 metrics 中会有 num-examples)
             num_examples = int(metrics_record.get("num-examples", 0))
@@ -162,3 +192,41 @@ class FedBr(FedAvg):
         )
 
         return aggregated_arrays, aggregated_metrics
+
+    # def aggregate_evaluate(
+    #     self,
+    #     server_round: int,
+    #     replies: Iterable[Message],
+    # ) -> tuple[float | None, MetricRecord | None]:
+    #     total_examples = 0
+    #     weighted_loss_sum = 0.0
+    #     weighted_acc_sum = 0.0
+    #
+    #     for msg in replies:
+    #         if "metrics" not in msg.content:
+    #             continue
+    #
+    #         metrics_record = msg.content["metrics"]
+    #         client_id = int(metrics_record.get("client_id", -1))
+    #         if client_id >= 0:
+    #             self.metrics_logger.log(
+    #                 round_number=server_round,
+    #                 phase="evaluate",
+    #                 client_id=client_id,
+    #                 metrics=self._extract_client_metrics(metrics_record),
+    #             )
+    #
+    #         num_examples = int(metrics_record.get("num-examples", 0))
+    #         eval_loss = float(metrics_record.get("eval_loss", 0.0))
+    #         eval_acc = float(metrics_record.get("eval_acc", 0.0))
+    #         total_examples += num_examples
+    #         weighted_loss_sum += eval_loss * num_examples
+    #         weighted_acc_sum += eval_acc * num_examples
+    #
+    #     if total_examples == 0:
+    #         return None, MetricRecord({})
+    #
+    #     avg_loss = weighted_loss_sum / total_examples
+    #     avg_acc = weighted_acc_sum / total_examples
+    #     aggregated_metrics = MetricRecord({"eval_loss": avg_loss, "eval_acc": avg_acc})
+    #     return avg_loss, aggregated_metrics
