@@ -92,7 +92,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    input_path = args.input or find_latest_metrics_file(Path(FINAL_MODEL_DIR))
+    input_path = args.input or find_latest_metrics_file(Path(f"../{FINAL_MODEL_DIR}"))
     records = load_records(input_path)
     if not records:
         raise SystemExit(f"No records found in {args.input}")
