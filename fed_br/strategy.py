@@ -40,6 +40,7 @@ class FedBr(FedAvg):
         self.current_t_total: float = 0.0
         self.current_global_noise_impact: float = 0.0
         self.total_samples: int = 0
+        self.client_states: dict[int, dict[str, Any]] = {}
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         metrics_path = Path(FINAL_MODEL_DIR) / f"{CLIENT_METRICS_PREFIX}_{timestamp}.jsonl"
         self.metrics_logger = ClientMetricLogger(metrics_path)
@@ -158,26 +159,45 @@ class FedBr(FedAvg):
                     metrics=self._extract_client_metrics(metrics_record)
                 )
 
-            # 获取样本数 (通常在 metrics 中会有 num-examples)
-            num_examples = int(metrics_record.get("num-examples", 0))
+                # 获取样本数 (通常在 metrics 中会有 num-examples)
+                num_examples = int(metrics_record.get("num-examples", 0))
 
-            # 获取客户端上报的 local_epochs
-            e_i = int(metrics_record.get("local_epochs", 1))
+                # 获取客户端上报的 local_epochs
+                e_i = int(metrics_record.get("local_epochs", 1))
 
-            # 获取客户端上报的 local_impact_factor
-            local_impact = float(metrics_record.get("local_impact_factor", 0.0))
+                # 获取客户端上报的 local_impact_factor
+                local_impact = float(metrics_record.get("local_impact_factor", 0.0))
 
-            round_total_samples += num_examples
-            epoch_sum += e_i
-            # 累加加权部分: n_i * impact
-            weighted_impact_sum += num_examples * local_impact
+                self.client_states[client_id] = {
+                    "num_examples": num_examples,
+                    "local_epochs": e_i,
+                    "local_impact_factor": local_impact,
+                }
+
+                round_total_samples += num_examples
+                epoch_sum += e_i
+                # 累加加权部分: n_i * impact
+                weighted_impact_sum += num_examples * local_impact
+
+        global_epoch_sum = 0
+        global_weighted_impact_sum = 0.0
+        global_total_samples = 0
+
+        for state in self.client_states.values():
+            n_i = state["num_examples"]
+            e_i = state["local_epochs"]
+            impact_i = state["local_impact_factor"]
+
+            global_total_samples += n_i
+            global_epoch_sum += e_i
+            global_weighted_impact_sum += n_i * impact_i
 
         # 3. 更新全局状态
         self.total_samples = round_total_samples
         self.current_t_total = float(epoch_sum)
 
-        if round_total_samples > 0:
-            self.current_global_noise_impact = weighted_impact_sum / round_total_samples
+        if global_total_samples > 0:
+            self.current_global_noise_impact = global_weighted_impact_sum / global_total_samples
         else:
             self.current_global_noise_impact = 0.0
 
@@ -193,40 +213,3 @@ class FedBr(FedAvg):
 
         return aggregated_arrays, aggregated_metrics
 
-    # def aggregate_evaluate(
-    #     self,
-    #     server_round: int,
-    #     replies: Iterable[Message],
-    # ) -> tuple[float | None, MetricRecord | None]:
-    #     total_examples = 0
-    #     weighted_loss_sum = 0.0
-    #     weighted_acc_sum = 0.0
-    #
-    #     for msg in replies:
-    #         if "metrics" not in msg.content:
-    #             continue
-    #
-    #         metrics_record = msg.content["metrics"]
-    #         client_id = int(metrics_record.get("client_id", -1))
-    #         if client_id >= 0:
-    #             self.metrics_logger.log(
-    #                 round_number=server_round,
-    #                 phase="evaluate",
-    #                 client_id=client_id,
-    #                 metrics=self._extract_client_metrics(metrics_record),
-    #             )
-    #
-    #         num_examples = int(metrics_record.get("num-examples", 0))
-    #         eval_loss = float(metrics_record.get("eval_loss", 0.0))
-    #         eval_acc = float(metrics_record.get("eval_acc", 0.0))
-    #         total_examples += num_examples
-    #         weighted_loss_sum += eval_loss * num_examples
-    #         weighted_acc_sum += eval_acc * num_examples
-    #
-    #     if total_examples == 0:
-    #         return None, MetricRecord({})
-    #
-    #     avg_loss = weighted_loss_sum / total_examples
-    #     avg_acc = weighted_acc_sum / total_examples
-    #     aggregated_metrics = MetricRecord({"eval_loss": avg_loss, "eval_acc": avg_acc})
-    #     return avg_loss, aggregated_metrics
