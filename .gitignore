@@ -32,3 +32,5 @@ logs/
 dmypy.json
 .outputs
 
+uv.lock
+

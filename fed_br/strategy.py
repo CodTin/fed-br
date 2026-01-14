@@ -42,7 +42,9 @@ class FedBr(FedAvg):
         self.total_samples: int = 0
         self.client_states: dict[int, dict[str, Any]] = {}
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        metrics_path = Path(FINAL_MODEL_DIR) / f"{CLIENT_METRICS_PREFIX}_{timestamp}.jsonl"
+        metrics_path = (
+            Path(FINAL_MODEL_DIR) / f"{CLIENT_METRICS_PREFIX}_{timestamp}.jsonl"
+        )
         self.metrics_logger = ClientMetricLogger(metrics_path)
 
     @staticmethod
@@ -156,7 +158,7 @@ class FedBr(FedAvg):
                     round_number=server_round,
                     phase="train",
                     client_id=client_id,
-                    metrics=self._extract_client_metrics(metrics_record)
+                    metrics=self._extract_client_metrics(metrics_record),
                 )
 
                 # 获取样本数 (通常在 metrics 中会有 num-examples)
@@ -197,7 +199,9 @@ class FedBr(FedAvg):
         self.current_t_total = float(epoch_sum)
 
         if global_total_samples > 0:
-            self.current_global_noise_impact = global_weighted_impact_sum / global_total_samples
+            self.current_global_noise_impact = (
+                global_weighted_impact_sum / global_total_samples
+            )
         else:
             self.current_global_noise_impact = 0.0
 
@@ -212,4 +216,3 @@ class FedBr(FedAvg):
         )
 
         return aggregated_arrays, aggregated_metrics
-

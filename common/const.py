@@ -49,6 +49,7 @@ class CommunicationConstant(Enum):
         >>> bandwidth = CommunicationConstant.BANDWIDTH.value
         >>> print(f"Bandwidth: {bandwidth} Hz")
     """
+
     BANDWIDTH = 1e6  #: 通信带宽 (Hz)
     TX_POWER = 0.5  #: 发射功率 (W)
     NOISE_PSD = 1e-9  #: 噪声功率谱密度 (W/Hz)
@@ -72,6 +73,7 @@ class ComputationConstant(Enum):
         >>> cycles = ComputationConstant.CYCLES_PER_SAMPLE.value
         >>> print(f"Cycles per sample: {cycles}")
     """
+
     CYCLES_PER_SAMPLE = 2e6
     E_DEC = 1e-10  # 解码能耗 (J)
     E_AGG = 1e-11  # 聚合能耗 (j)
@@ -95,6 +97,7 @@ class PrivacyLeakageConstant(Enum):
         >>> alpha = PrivacyLeakageConstant.ALPHA_0.value
         >>> print(f"Alpha_0: {alpha}")
     """
+
     ALPHA_0 = [1 + x / 10.0 for x in range(1, 100)] + list(range(12, 64))
 
 
@@ -116,6 +119,7 @@ class GlobalConvergenceConstant(Enum):
         >>> a = GlobalConvergenceConstant.A.value
         >>> print(f"Convergence constant A: {a}")
     """
+
     A = 50.0
     B = 0.0
 
@@ -145,6 +149,7 @@ class GameLogicConstants(Enum):
         >>> epochs = GameLogicConstants.EPOCH_OPTIONS.value
         >>> print(f"Available epochs: {epochs}")
     """
+
     EPOCH_OPTIONS = (1, 2, 3, 4, 5)  # 离散的 epochs 选项
 
     NOISE_OPTIONS = (0.5, 0.7, 1.0, 1.2, 1.5, 2.0)  # 离散的 noise multipliers 选项

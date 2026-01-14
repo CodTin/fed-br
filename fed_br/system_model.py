@@ -292,7 +292,9 @@ class PrivacyLeakage:
 
         alphas = PrivacyLeakageConstant.ALPHA_0.value
 
-        rdp = privacy_analysis.compute_rdp(q=gamma_i, noise_multiplier=noise_multiplier, steps=steps, orders=alphas)
+        rdp = privacy_analysis.compute_rdp(
+            q=gamma_i, noise_multiplier=noise_multiplier, steps=steps, orders=alphas
+        )
 
         # term1 = (epochs * gamma_i * PrivacyLeakageConstant.ALPHA_0.value) / (
         #     2 * (noise_multiplier**2)
