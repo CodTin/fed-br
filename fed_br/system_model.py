@@ -41,7 +41,7 @@ class Communication:
             int: 模型参数量(总参数量 x 32 bits)
 
         Example:
-            >>> model = LightweightCNN()
+            >>> model = Net()
             >>> size = Communication.get_model_size_bits(model)
             >>> print(f"Model size: {size} bits")  # doctest: +SKIP
         """
@@ -236,7 +236,7 @@ class PrivacyLeakage:
     """
     隐私泄露模型。
 
-    基于差分隐私理论计算隐私成本（epsilon 值）。
+    基于差分隐私理论计算隐私成本(epsilon 值)。
     用于评估联邦学习过程中各客户端的隐私泄露程度。
 
     Example:
@@ -256,7 +256,7 @@ class PrivacyLeakage:
         target_delta: float,
     ) -> float:
         """
-        计算差分隐私成本（epsilon 值）。
+        计算差分隐私成本(epsilon 值)。
 
         基于 Moments Accountant 方法计算给定训练配置下的
         差分隐私预算消耗。
@@ -269,12 +269,12 @@ class PrivacyLeakage:
             target_delta: 差分隐私目标 delta 值
 
         Returns:
-            float: 隐私成本（epsilon 值）。如果 noise_multiplier <= 0
-                   或 num_samples <= 0，返回无穷大
+            float: 隐私成本(epsilon 值)。如果 noise_multiplier <= 0
+                   或 num_samples <= 0,返回无穷大
 
         Note:
-            计算公式基于 Moments Accountant 近似方法，
-            隐私成本随 epochs 和 batch_size 增大而增加，
+            计算公式基于 Moments Accountant 近似方法,
+            隐私成本随 epochs 和 batch_size 增大而增加,
             随 noise_multiplier 增大而减小。
 
         Example:
@@ -319,8 +319,8 @@ class GlobalConvergence:
     全局收敛模型。
 
     用于估算数据质量因子和全局收敛误差。
-    数据质量因子反映客户端数据分布与均匀分布的差异，
-    收敛误差用于评估全局模型训练过程中的收敛程度。
+    数据质量因子反映客户端数据分布与均匀分布的差异,
+    收敛误差用于评估全局模型训练过程中的收敛程度.
 
     Example:
         >>> theta = GlobalConvergence.estimate_data_quality(test_loader)
@@ -332,17 +332,17 @@ class GlobalConvergence:
         """
         估算客户端数据质量因子。
 
-        通过分析数据集中各类别的分布，计算与均匀分布的
+        通过分析数据集中各类别的分布,计算与均匀分布的
         差异程度来估算数据质量因子 theta_i。
 
         Args:
             dataloader: 包含标签信息的数据加载器
 
         Returns:
-            float: 数据质量因子 theta_i，值越大表示数据分布越不均衡
+            float: 数据质量因子 theta_i,值越大表示数据分布越不均衡
 
         Note:
-            计算步骤：
+            计算步骤:
             1. 统计各类别样本数
             2. 计算与均匀分布的 L1 距离
             3. 将 L1 距离映射到 [0.5, 1.0] 范围内的 theta 值
@@ -409,11 +409,11 @@ class GlobalConvergence:
             noise_impact_sum: 所有客户端噪声影响的加权和
 
         Returns:
-            float: 全局收敛误差。如果 total_epochs <= 0，返回无穷大
+            float: 全局收敛误差。如果 total_epochs <= 0,返回无穷大
 
         Note:
             误差公式: error = A / total_epochs + noise_impact_sum
-            训练轮数越多，误差越小；噪声影响越大，误差越大。
+            训练轮数越多,误差越小; 噪声影响越大,误差越大。
 
         Example:
             >>> error = GlobalConvergence.compute_global_error(100, 0.5)

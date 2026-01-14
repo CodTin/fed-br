@@ -12,13 +12,13 @@ class GameLogic:
     博弈论最优响应计算模块。
 
     基于博弈论框架计算客户端的最优本地训练策略。
-    客户端作为博弈参与者，在给定全局状态和其他客户端策略的
-    假设下，选择最小化总成本的本地训练参数（epoch 和噪声乘数）。
+    客户端作为博弈参与者,在给定全局状态和其他客户端策略的
+    假设下,选择最小化总成本的本地训练参数(epoch 和噪声乘数)。
 
     Note:
         成本函数: Cost = ALPHA * 能耗 + BETA * 隐私成本 + GAMMA * 收敛误差
 
-        其中：
+        其中:
         - 能耗 = 通信能耗 + 计算能耗
         - 隐私成本 = 差分隐私 epsilon 值
         - 收敛误差 = 预测的全局收敛误差变化
@@ -60,8 +60,8 @@ class GameLogic:
         """
         计算客户端的最优响应策略。
 
-        在博弈论框架下，给定全局状态和客户端本地条件，
-        通过遍历所有可选的 (epoch, noise_multiplier) 组合，
+        在博弈论框架下,给定全局状态和客户端本地条件,
+        通过遍历所有可选的 (epoch, noise_multiplier) 组合,
         找到总成本最小的配置作为最优响应。
 
         Args:
@@ -77,7 +77,7 @@ class GameLogic:
             kappa_i: 客户端能量系数 (J/operation)
             theta_i: 本地数据质量因子
             h_i: 客户端信道增益
-            model_size_bites: 模型参数量（bits）
+            model_size_bites: 模型参数量(bits)
 
         Returns:
             tuple: (best_e, best_sigma, min_cost)

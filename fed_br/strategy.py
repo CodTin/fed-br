@@ -6,7 +6,7 @@ from typing import Any
 from flwr.common import ArrayRecord, ConfigRecord, Message, MetricRecord
 from flwr.serverapp.strategy import FedAvg
 
-from common.const import FINAL_MODEL_DIR, CLIENT_METRICS_PREFIX
+from common.const import CLIENT_METRICS_PREFIX, FINAL_MODEL_DIR
 from fed_br.metrics_logger import ClientMetricLogger
 
 
@@ -141,7 +141,7 @@ class FedBr(FedAvg):
 
         # 2. 统计自定义指标
         epoch_sum = 0
-        weighted_impact_sum = 0.0
+        # weighted_impact_sum = 0.0
         round_total_samples = 0
 
         # 遍历所有客户端的回复消息
@@ -179,7 +179,7 @@ class FedBr(FedAvg):
                 round_total_samples += num_examples
                 epoch_sum += e_i
                 # 累加加权部分: n_i * impact
-                weighted_impact_sum += num_examples * local_impact
+                # weighted_impact_sum += num_examples * local_impact
 
         global_epoch_sum = 0
         global_weighted_impact_sum = 0.0
