@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 from flwr.app import ArrayRecord, Context, Message, MetricRecord, RecordDict
 from flwr.clientapp import ClientApp
 from opacus import PrivacyEngine
-from torch.optim import SGD
+from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
 from common import get_device, unwrap_state_dict
@@ -32,7 +32,7 @@ logger = logging.getLogger("flwr")
 
 
 def partition_loader(
-    ctx: Context,
+        ctx: Context,
 ) -> tuple[int, float, DataLoader[Any], DataLoader[Any]]:
     """
     根据上下文配置加载客户端数据分区。
@@ -106,19 +106,19 @@ def train(msg: Message, context: Context) -> Message:
     max_grad_norm = float(context.run_config["max-grad-norm"])
     lr = float(cast("float", cast("object", msg.content["config"]["lr"])))
     batch_size = int(context.run_config["batch-size"])
-    local_epochs = int(context.run_config["local-epochs"])
 
     server_config = msg.content["config"]
     global_t_total = float(server_config.get("global_t_total", 0.0))
     global_noise_impact = float(server_config.get("global_noise_impact", 0.0))
     global_total_samples = int(server_config.get("global_total_samples", 0))
+    initial_history_epochs = int(server_config.get("initial_history_epochs", 0))
 
     arrays = cast("ArrayRecord", msg.content["arrays"])
     model.load_state_dict(arrays.to_torch_state_dict())
     device = get_device()
     model.to(device)
 
-    optim = SGD(params=model.parameters(), lr=lr, momentum=0.9)
+    optim = AdamW(params=model.parameters(), lr=lr)
 
     # Load the data
     pid, noise_multiplier, train_loader, _ = partition_loader(context)
@@ -145,7 +145,7 @@ def train(msg: Message, context: Context) -> Message:
     theta_i = GlobalConvergence.estimate_data_quality(train_loader)
 
     local_impact_factor = (
-        GlobalConvergenceConstant.B.value + (noise_multiplier**2) * theta_i
+            GlobalConvergenceConstant.B.value + (noise_multiplier ** 2) * theta_i
     )
 
     if pid not in CLIENT_STATES:
@@ -173,11 +173,11 @@ def train(msg: Message, context: Context) -> Message:
         f"[Client id {pid}]: Client choose Strategy(e={best_e}, noise={best_noise}, cost={min_cost})"
     )
 
-    current_local_impact = GlobalConvergenceConstant.B.value + (best_noise**2) * theta_i
+    current_local_impact = GlobalConvergenceConstant.B.value + (best_noise ** 2) * theta_i
     CLIENT_STATES[pid] = {"prev_e": best_e, "prev_impact": current_local_impact}
 
     # Call the training function
-    local_epochs = best_e
+    local_epochs = best_e + initial_history_epochs
     noise_multiplier = best_noise
     train_loss, epsilon = train_fn(
         model,

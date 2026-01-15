@@ -46,6 +46,7 @@ class FedBr(FedAvg):
             Path(FINAL_MODEL_DIR) / f"{CLIENT_METRICS_PREFIX}_{timestamp}.jsonl"
         )
         self.metrics_logger = ClientMetricLogger(metrics_path)
+        self.client_accumulated_epochs: dict[int, int] = {}
 
     @staticmethod
     def _extract_client_metrics(metrics_record: MetricRecord) -> dict[str, float | int]:
@@ -92,6 +93,11 @@ class FedBr(FedAvg):
                 msg.content["config"] = ConfigRecord({})
 
             config_record = msg.content["config"]
+
+            client_node_id = msg.metadata.dst_node_id
+
+            history_epochs = self.client_accumulated_epochs.get(client_node_id, 0)
+            config_record["initial_accumulted_epochs"] = history_epochs
 
             config_record["global_t_total"] = self.current_t_total
             config_record["global_noise_impact"] = self.current_global_noise_impact
@@ -153,6 +159,9 @@ class FedBr(FedAvg):
             metrics_record = msg.content["metrics"]
             client_id = int(metrics_record.get("client_id", -1))
 
+            # 获取客户端上报的 local_epochs
+            e_i = int(metrics_record.get("local_epochs", 1))
+
             if client_id >= 0:
                 self.metrics_logger.log(
                     round_number=server_round,
@@ -163,9 +172,6 @@ class FedBr(FedAvg):
 
                 # 获取样本数 (通常在 metrics 中会有 num-examples)
                 num_examples = int(metrics_record.get("num-examples", 0))
-
-                # 获取客户端上报的 local_epochs
-                e_i = int(metrics_record.get("local_epochs", 1))
 
                 # 获取客户端上报的 local_impact_factor
                 local_impact = float(metrics_record.get("local_impact_factor", 0.0))
@@ -180,6 +186,9 @@ class FedBr(FedAvg):
                 epoch_sum += e_i
                 # 累加加权部分: n_i * impact
                 # weighted_impact_sum += num_examples * local_impact
+
+                current_total = self.client_accumulated_epochs.get(client_id, 0)
+                self.client_accumulated_epochs[client_id] = current_total + e_i
 
         global_epoch_sum = 0
         global_weighted_impact_sum = 0.0

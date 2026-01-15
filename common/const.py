@@ -127,7 +127,7 @@ class GlobalConvergenceConstant(Enum):
     THETA_PENALTY = 0.5  # 异构性惩罚系数
 
 
-@unique
+# @unique
 class GameLogicConstants(Enum):
     """
     博弈论优化常量定义。
@@ -150,10 +150,12 @@ class GameLogicConstants(Enum):
         >>> print(f"Available epochs: {epochs}")
     """
 
-    EPOCH_OPTIONS = (1, 2, 3, 4, 5)  # 离散的 epochs 选项
+    # EPOCH_OPTIONS = (1, 2, 3, 4, 5)  # 离散的 epochs 选项
+    EPOCH_OPTIONS = tuple(i for i in range(1, 11))
 
-    NOISE_OPTIONS = (0.5, 0.7, 1.0, 1.2, 1.5, 2.0)  # 离散的 noise multipliers 选项
+    # NOISE_OPTIONS = (0.5, 0.7, 1.0, 1.2, 1.5)  # 离散的 noise multipliers 选项
+    NOISE_OPTIONS = tuple(i / 10 for i in range(1, 16))
 
-    ALPHA = 1.0
-    BETA = 50
+    ALPHA = 0.5
+    BETA = 2.0
     GAMMA = 100.0
